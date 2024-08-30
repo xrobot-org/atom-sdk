@@ -1,2 +1,3 @@
 uart_linux_example/main
 .history/**
+stm32_can_example/build/**
