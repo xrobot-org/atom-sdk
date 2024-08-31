@@ -25,7 +25,35 @@
 
 ## linux_uart_example
 
+please use [wch official usb driver](https://github.com/WCHSoftGroup/ch343ser_linux) for stability.
+
 ```shell
+# generate signature
+sudo apt install mokutil
+sudo apt install shim-signed
+sudo update-secureboot-policy --new-key
+openssl req -new -x509 -newkey rsa:2048 -keyout MOK.priv -outform DER -out MOK.der -nodes -days 36500 -subj "/CN=Descriptive name/"
+sudo mokutil --import /var/lib/shim-signed/mok/MOK.der
+
+# reboot and enroll MOK
+reboot
+
+# build driver
+git clone https://github.com/WCHSoftGroup/ch343ser_linux
+cd ch343ser_linux/driver
+make
+
+# sign driver
+sudo /usr/src/linux-headers-$(uname -r)/scripts/sign-file sha256 /var/lib/shim-signed/mok/MOK.priv /var/lib/shim-signed/mok/MOK.der ch343.ko
+
+# install driver
+sudo make install
+
+reboot
+```
+
+```shell
+# build example
 gcc main.c -o main
 ./main
 ```
@@ -58,5 +86,6 @@ Open it in rviz2.
 make
 ```
 
-------------
+-----------------
+
 ![XRobot](./img/XRobot.jpeg)

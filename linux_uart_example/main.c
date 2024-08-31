@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 #define IMU_ID (0x30)
-#define UART_PORT ("/dev/ttyACM1")
+#define UART_PORT ("/dev/ttyCH343USB1")
 
 typedef struct __attribute__((packed)) {
   float x;
