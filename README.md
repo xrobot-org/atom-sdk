@@ -7,13 +7,23 @@
 * Output Rate: 1-1000Hz
 * Support Voltage: 5V/24V
 * Port: USB/UART/CANFD
-* Support Data: ACCL/GYRO/EULER/QUAT
+* Support Data: ACCL/GYRO/EULR/QUAT
 * Uart Baudrate: 460800(Terminal)/1M(Data)
 * CAN Baudrate: 1M/5M
 * GYRO: FULL 2000DPS, Resolution 0.015DPS
 * ACCL: FULL 24G, Resolution 0.0001G
 
------------------
+## Connection
+
+USB-CH342: `UART_DATA(1M) UART_TERMINAL(460800)`
+
+UART 1.25 4P: `1:RX 2:TX 3:GND 4:+5V_IN`
+
+CAN 1.25 2P:  `1:CANL 2:CANH`
+
+XT30: `24V_IN`
+
+## Example
 
 ```shell
 ├── linux_uart_example      `UART Prase Example on Linux`
@@ -23,7 +33,7 @@
 └── stm32_can_example       `CAN/CANFD Prase Example on STM32`
 ```
 
-## linux_uart_example
+### linux_uart_example
 
 please use [wch official usb driver](https://github.com/WCHSoftGroup/ch343ser_linux) for stability.
 
@@ -58,34 +68,34 @@ gcc main.c -o main
 ./main
 ```
 
-## ROS
+### ROS
 
 VERSION=`rolling`
 
-### ros_imu_publisher
+#### ros_imu_publisher
 
 ```shell
 colcon build
 ros2 run imu_publisher node_imu
 ```
 
-### ros_imu_subscriber
+#### ros_imu_subscriber
 
 ```shell
 colcon build
 ros2 run imu_subscriber node_imu
 ```
 
-### ros_rviz_example
+#### ros_rviz_example
 
 Open it in rviz2.
 
-## stm32_can_example
+### stm32_can_example
 
 ```shell
 make
 ```
 
------------------
+---
 
 ![XRobot](./img/XRobot.jpeg)
