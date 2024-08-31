@@ -1,4 +1,4 @@
-# ATOM-IMU Module based on XRobot
+# [ATOM-IMU Module based on XRobot](https://www.bilibili.com/video/BV1iespeLE5S/?share_source=copy_web&vd_source=941b1c3432c2b11a6c408c836c9e2887)
 
 ![imu](./img/imu.jpg)
 
@@ -19,7 +19,7 @@ USB-CH342: `UART_DATA(1M) UART_TERMINAL(460800)`
 
 UART 1.25 4P: `1:RX 2:TX 3:GND 4:+5V_IN`
 
-CAN 1.25 2P:  `1:CANL 2:CANH`
+CAN 1.25 2P:  `1:CANL CANH`
 
 XT30: `24V_IN`
 
