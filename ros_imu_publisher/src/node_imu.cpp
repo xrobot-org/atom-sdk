@@ -1,14 +1,23 @@
+#include "geometry_msgs/msg/quaternion.hpp"
+#include "geometry_msgs/msg/vector3.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/imu.hpp"
+#include <chrono>
+#include <cmath>
 #include <fcntl.h>
+#include <memory>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 #include <termios.h>
 #include <unistd.h>
 
-#define IMU_ID (0x30)
-#define UART_PORT ("/dev/ttyCH343USB1")
+#define DATA_LENGTH sizeof(Data)
+
+const char *serial_port = "/dev/ttyACM1";
 
 typedef struct __attribute__((packed)) {
   float x;
@@ -40,8 +49,7 @@ typedef struct __attribute__((packed)) {
   uint8_t crc8;
 } Data;
 
-#define DATA_LENGTH sizeof(Data)
-
+// CRC8校验表
 static const uint8_t CRC8_TAB[256] = {
     0x00, 0x5e, 0xbc, 0xe2, 0x61, 0x3f, 0xdd, 0x83, 0xc2, 0x9c, 0x7e, 0x20,
     0xa3, 0xfd, 0x1f, 0x41, 0x9d, 0xc3, 0x21, 0x7f, 0xfc, 0xa2, 0x40, 0x1e,
@@ -66,6 +74,7 @@ static const uint8_t CRC8_TAB[256] = {
     0x74, 0x2a, 0xc8, 0x96, 0x15, 0x4b, 0xa9, 0xf7, 0xb6, 0xe8, 0x0a, 0x54,
     0xd7, 0x89, 0x6b, 0x35};
 
+// 计算CRC8校验码的函数
 uint8_t CalculateCRC8(const uint8_t *buf, size_t len, uint8_t crc) {
   while (len-- > 0) {
     crc = CRC8_TAB[(crc ^ *buf++) & 0xff];
@@ -73,6 +82,7 @@ uint8_t CalculateCRC8(const uint8_t *buf, size_t len, uint8_t crc) {
   return crc;
 }
 
+// 校验数据的函数
 bool VerifyData(const uint8_t *buf, size_t len) {
   if (len < 2) {
     return false;
@@ -82,6 +92,7 @@ bool VerifyData(const uint8_t *buf, size_t len) {
   return expected == buf[len - sizeof(uint8_t)];
 }
 
+// 打开串口并配置串口参数的函数
 int open_serial_port(const char *port) {
   int fd = open(port, O_RDWR | O_NOCTTY);
   if (fd < 0) {
@@ -98,7 +109,7 @@ int open_serial_port(const char *port) {
     return -1;
   }
 
-  cfsetospeed(&tty, B1000000);
+  cfsetospeed(&tty, B1000000); // 设置波特率为1M
   cfsetispeed(&tty, B1000000);
 
   tty.c_cflag &= ~PARENB;        // Clear parity bit
@@ -132,51 +143,82 @@ int open_serial_port(const char *port) {
   return fd;
 }
 
-int main() {
-  const char *serial_port = UART_PORT;
-  int serial_fd = open_serial_port(serial_port);
-  if (serial_fd < 0) {
-    return EXIT_FAILURE;
+class ImuNode : public rclcpp::Node {
+public:
+  ImuNode() : Node("imu_node") {
+    imu_publisher_ =
+        this->create_publisher<sensor_msgs::msg::Imu>("atom/imu_data", 10);
+    serial_fd = open_serial_port(serial_port);
+    if (serial_fd < 0) {
+      RCLCPP_FATAL(this->get_logger(), "Failed to open serial port.");
+      throw std::runtime_error("Serial port initialization failed.");
+    }
+
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(1),
+                                     [this]() { this->publish_imu_data(); });
   }
 
-  Data received_data;
-  ssize_t bytes_read;
+  ~ImuNode() {
+    if (serial_fd >= 0) {
+      close(serial_fd);
+    }
+  }
 
-  while (1) {
-    /* Find prefix */
+  void publish_imu_data() {
+    size_t bytes_read;
+    imu_msg.header.frame_id = "atom";
+
+    // 寻找数据前缀
     do {
       bytes_read = read(serial_fd, &received_data, 1);
-      if (bytes_read <= 0) {
-        exit(-1);
-      }
     } while (received_data.prefix != 0xa5);
 
-    /* Read data */
+    // 读取数据
     while (bytes_read < DATA_LENGTH) {
-      bytes_read =
-          bytes_read + read(serial_fd, ((uint8_t *)&received_data) + bytes_read,
-                            DATA_LENGTH - bytes_read);
+      bytes_read += read(serial_fd, ((uint8_t *)&received_data) + bytes_read,
+                         DATA_LENGTH - bytes_read);
     }
 
     // 检查前缀和ID
-    if (received_data.prefix == 0xa5 && received_data.id == IMU_ID) {
-      if (VerifyData((uint8_t *)(&received_data), DATA_LENGTH)) {
-        printf("ID:%d Yaw: %+6f, Pitch: %+6f, Roll: %+6f, Ax:%+6f,  Ay:%+6f,"
-               "Az:%+6f, Gx:%+6f,  Gy:%+6f, Gz:%+6f,"
-               "Q0:%+6f, Q1:%+6f, Q2:%+6f, Q3:%+6f\n",
-               received_data.id, received_data.eulr_.yaw,
-               received_data.eulr_.pit, received_data.eulr_.rol,
-               received_data.accl_.x, received_data.accl_.y,
-               received_data.accl_.z, received_data.gyro_.x,
-               received_data.gyro_.y, received_data.gyro_.z,
-               received_data.quat_.q0, received_data.quat_.q1,
-               received_data.quat_.q2, received_data.quat_.q3);
-      } else {
-        printf("CRC check failed.\n");
-      }
+    if (received_data.prefix == 0xa5 &&
+        VerifyData((uint8_t *)(&received_data), DATA_LENGTH)) {
+      // 填充imu_msg
+      imu_msg.header.stamp = this->now();
+      imu_msg.orientation.x = received_data.quat_.q1;
+      imu_msg.orientation.y = received_data.quat_.q2;
+      imu_msg.orientation.z = received_data.quat_.q3;
+      imu_msg.orientation.w = received_data.quat_.q0;
+      imu_msg.angular_velocity.x = received_data.gyro_.x;
+      imu_msg.angular_velocity.y = received_data.gyro_.y;
+      imu_msg.angular_velocity.z = received_data.gyro_.z;
+      imu_msg.linear_acceleration.x = received_data.accl_.x;
+      imu_msg.linear_acceleration.y = received_data.accl_.y;
+      imu_msg.linear_acceleration.z = received_data.accl_.z;
+
+      // 发布消息
+      imu_publisher_->publish(imu_msg);
+
+      RCLCPP_INFO(this->get_logger(),
+                  "time:%d yaw: %+6f, pitch: %+6f, roll: %+6f",
+                  received_data.time, received_data.eulr_.yaw,
+                  received_data.eulr_.pit, received_data.eulr_.rol);
+    } else {
+      std::cerr << "CRC check failed." << std::endl;
     }
   }
 
-  close(serial_fd);
-  return EXIT_SUCCESS;
+private:
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
+  sensor_msgs::msg::Imu imu_msg;
+  Data received_data;
+  rclcpp::TimerBase::SharedPtr timer_;
+  int serial_fd;
+};
+
+int main(int argc, char *argv[]) {
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<ImuNode>();
+  rclcpp::spin(node);
+  rclcpp::shutdown();
+  return 0;
 }

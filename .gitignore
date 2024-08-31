@@ -1,3 +1,10 @@
 uart_linux_example/main
 .history/**
 stm32_can_example/build/**
+ros_imu_publisher/build/**
+ros_imu_publisher/install/**
+ros_imu_publisher/log/**
+
+ros_imu_subscriber/build/**
+ros_imu_subscriber/install/**
+ros_imu_subscriber/log/**
