@@ -84,14 +84,11 @@ typedef struct __attribute__((packed)) {
 } EulerAngles;
 
 typedef struct __attribute__((packed)) {
-  uint8_t prefix;
-  uint8_t id;
   uint32_t time;
   Quaternion quat_;
   Vector3 gyro_;
   Vector3 accl_;
   EulerAngles eulr_;
-  uint8_t crc8;
 } Data;
 
 typedef struct __attribute__((packed)) {

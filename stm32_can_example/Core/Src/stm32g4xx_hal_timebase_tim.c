@@ -48,10 +48,8 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
 
   /* Enable TIM15 clock */
   __HAL_RCC_TIM15_CLK_ENABLE();
-
   /* Get clock configuration */
   HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
-
   /* Compute TIM15 clock */
   uwTimclock = HAL_RCC_GetPCLK2Freq();
 
