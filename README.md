@@ -1,4 +1,4 @@
-# [ATOM-IMU Module based on XRobot](https://www.bilibili.com/video/BV1iespeLE5S/?share_source=copy_web&vd_source=941b1c3432c2b11a6c408c836c9e2887)
+# ATOM-IMU Module based on XRobot
 
 ![imu](./img/imu.jpg)
 
@@ -96,6 +96,16 @@ Open it in rviz2.
 make
 ```
 
----
+## 3D Model
+
+[Top Model](./3D/top.STEP)
+
+[Bottom Model](./3D/bottom.STEP)
+
+![View](./img/xrobot-atom.png)
+
+## [Video](https://www.bilibili.com/video/BV1iespeLE5S/?share_source=copy_web&vd_source=941b1c3432c2b11a6c408c836c9e2887)
+
+## [Buy Now](https://mall.bilibili.com/neul-next/index.html?page=mall-up_itemDetail&noTitleBar=1&itemsId=1106251092&from=items_share&msource=items_share)
 
 ![XRobot](./img/XRobot.jpeg)
