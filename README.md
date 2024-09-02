@@ -96,6 +96,94 @@ Open it in rviz2.
 make
 ```
 
+## Terminal
+
+```shell
+linux@XRobot:~$ ls /dev/ttyCH*
+/dev/ttyCH343USB0  /dev/ttyCH343USB1
+
+linux@XRobot:~$ picocom /dev/ttyCH343USB0 -b 460800
+ __  __ _      _ ___ _        _ _ 
+|  \/  (_)_ _ (_) __| |_  ___| | |
+| |\/| | | ' \| \__ \ ' \/ -_) | |
+|_|  |_|_|_||_|_|___/_||_\___|_|_|
+Build:Aug 31 2024 23:47:44
+version:1.0.6
+
+Welcome to use XRobot!
+atom@XRobot:~$ 
+```
+
+![Terminal](./img/terminal.png)
+
+### set_imu
+
+```shell
+atom@XRobot:~$ set_imu
+
+# can/canfd
+can mode
+# accl/gyro/quat/eulr
+data:accl,gyro,quat,eulr,
+# 1-1000
+feedback delay:2
+# CAN ID
+id:48
+
+Usage:
+ set_delay  [time]       设置发送延时ms
+ set_can_id [id]         设置can id
+ enable/disable     [accl/gyro/quat/eulr/canfd]
+```
+
+### calibration
+
+The entire process takes about 20 minutes
+
+```shell
+#Align the X-axis with the direction of gravity
+atom@XRobot:~$ bmi088 cali
+...
+#Align the X-axis with the opposite direction of gravity
+atom@XRobot:~$ bmi088 cali
+...
+#Align the Y-axis with the direction of gravity
+atom@XRobot:~$ bmi088 cali
+...
+#Align the Y-axis with the opposite direction of gravity
+atom@XRobot:~$ bmi088 cali
+...
+#Align the Z-axis with the direction of gravity
+atom@XRobot:~$ bmi088 cali
+...
+#Align the Z-axis with the opposite direction of gravity
+atom@XRobot:~$ bmi088 cali
+...
+
+atom@XRobot:~$ bmi088 cal_cali
+
+#Align the Z-axis with the direction of gravity
+atom@XRobot:~$ icm42688 cali
+...
+```
+
+### Measure zero offset
+
+```shell
+atom@XRobot:~$ /dev/AHRS test
+请保持静止，开始检测零漂
+请等待
+零漂:-0.120239度/分钟
+```
+
+### View data on VOFA+
+
+Add custom command on VOFA+
+
+```shell
+/dev/AHRS print_quat 1000000 1\r\n
+```
+
 ## 3D Model
 
 [Top Model](./3D/top.STEP)
