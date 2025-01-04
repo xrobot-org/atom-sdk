@@ -277,6 +277,31 @@ typedef struct __attribute__((packed)) {
 } Data;
 ```
 
+## Update Firmware
+
+<font color=red>Important: Never erase the entire flash!!!</font>
+
+1. Get the latest firmware
+
+    See [Firmware](./firmware).
+
+1. Enter the bootloader mode
+
+    ```sh
+    # Input in terminal
+    power bl
+    ```
+
+1. Flash the firmware
+
+    Use uart download tool to flash the firmware, such as `STM32CubeProgrammer` or `stm32flash`.
+    Uart port: SERIAL-B(UART-DATA)
+
+1. Reboot
+
+    Restart the power supply.
+
+
 ## [Video](https://www.bilibili.com/video/BV1iespeLE5S/?share_source=copy_web&vd_source=941b1c3432c2b11a6c408c836c9e2887)
 
 ## [Buy Now](https://mall.bilibili.com/neul-next/index.html?page=mall-up_itemDetail&noTitleBar=1&itemsId=1106251092&from=items_share&msource=items_share)
