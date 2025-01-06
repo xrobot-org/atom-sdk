@@ -13,6 +13,10 @@
 * GYRO: FULL 2000DPS, Resolution 0.015DPS
 * ACCL: FULL 24G, Resolution 0.0001G
 
+## Output Test
+
+![data](./img/data.png)
+
 ## Connection
 
 USB-CH342: `UART_DATA(1M) UART_TERMINAL(460800)`
