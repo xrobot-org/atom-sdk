@@ -2,6 +2,8 @@
 
 ![imu](./img/imu.jpg)
 
+[English](./README.md) | [简体中文](./README.zh-CN.md)
+
 ## Parameter
 
 * Output Rate: 1-1000Hz
