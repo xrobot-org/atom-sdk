@@ -207,14 +207,25 @@ UART总共会收到两种类型的数据，分别是数据帧（Data）和CAN透
 
 CAN透传帧既可以由控制器发送给本模块，也可以由本模块发送给控制器，实现can接口的拓展。
 
-```cpp
+```c++
 typedef struct __attribute__((packed)) {
-  float q0, q1, q2, q3;
+  float x;
+  float y;
+  float z;
+} Vector3;
+
+typedef struct __attribute__((packed)) {
+  float q0;
+  float q1;
+  float q2;
+  float q3;
 } Quaternion;
 
 typedef struct __attribute__((packed)) {
-  float x, y, z;
-} Vector3;
+  float yaw;
+  float pit;
+  float rol;
+} EulerAngles;
 
 typedef struct __attribute__((packed)) {
   uint8_t prefix;
@@ -223,6 +234,7 @@ typedef struct __attribute__((packed)) {
   Quaternion quat;
   Vector3 gyro;
   Vector3 accl;
+  EulerAngles eulr;
   uint8_t crc8;
 } Data;
 
@@ -236,21 +248,50 @@ typedef struct __attribute__((packed)) {
 
 ### **CAN 协议**
 
-```cpp
+```c++
 struct __attribute__((packed)) {
   uint32_t id;
   uint16_t data[4];
-} can_pack;
+}can_pack;
+
+switch (can_pack.id) {
+      case IMU_ID:
+        accl.x = (float)(can_pack.data[0]) / 32767.0f * 16.0f;
+        accl.y = (float)(can_pack.data[1]) / 32767.0f * 16.0f;
+        accl.z = (float)(can_pack.data[2]) / 32767.0f * 16.0f;
+        break;
+      case IMU_ID + 1:
+        gyro.x = (float)(can_pack.data[0]) / 32767.0f * 34.90658502f;
+        gyro.y = (float)(can_pack.data[1]) / 32767.0f * 34.90658502f;
+        gyro.z = (float)(can_pack.data[2]) / 32767.0f * 34.90658502f;
+        break;
+      case IMU_ID + 3:
+        eulr.pit = (float)(can_pack.data[0]) / 32767.0f * M_2PI;
+        eulr.rol = (float)(can_pack.data[1]) / 32767.0f * M_2PI;
+        eulr.yaw = (float)(can_pack.data[2]) / 32767.0f * M_2PI;
+        break;
+      case IMU_ID + 4:
+        quat.q0 = (float)(can_pack.data[0]) / 32767.0f * 2.0f;
+        quat.q1 = (float)(can_pack.data[1]) / 32767.0f * 2.0f;
+        quat.q2 = (float)(can_pack.data[2]) / 32767.0f * 2.0f;
+        quat.q3 = (float)(can_pack.data[3]) / 32767.0f * 2.0f;
+        break;
+      default:
+        break;
+      }
 ```
 
 ### **CANFD 结构**
 
-```cpp
+```c++
+ //CANID = IMU_ID
+
 typedef struct __attribute__((packed)) {
   uint32_t time;
   Quaternion quat_;
   Vector3 gyro_;
   Vector3 accl_;
+  EulerAngles eulr_;
 } Data;
 ```
 
