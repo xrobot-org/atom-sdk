@@ -44,6 +44,8 @@
 
 ### **Linux UART 示例**
 
+![linux_uart_example](./img/linux_uart_example.png)
+
 请使用 [wch 官方 USB 驱动](https://github.com/WCHSoftGroup/ch343ser_linux) 以确保稳定性。
 
 ```shell
@@ -124,15 +126,26 @@ Welcome to use XRobot!
 
 ```shell
 atom@XRobot:~$ set_imu
-
 # 设定模式：CAN / CANFD
 can mode
 # 设定数据类型：加速度、陀螺仪、四元数、欧拉角
 data:accl,gyro,quat,eulr,
+# UART输出使能
+uart output enabled.
+# CAN_BRIDGE模式(通过uart透传收到的CAN数据，使能会强制设置数据串口为2Mbps)
+can bridge mode enabled.
 # 设定反馈延迟（单位：毫秒，范围 1-1000）
-feedback delay:2
+feedback delay:1
 # 设定 CAN ID
 id:48
+
+Usage:
+ set_delay  [time]  设置发送延时ms
+ set_can_id [id]    设置can id
+ enable/disable     [accl/gyro/quat/eulr/canfd/can/uart/can_bridge]
+ set_uart_baud      [0:9600 1:100000 2:115200 3:460800 4:921600 5:1000000 6:2000000]
+ set_uart_parity    [0:None, 1:Odd, 2:Even]
+
 ```
 
 ## **校准（Calibration）**
@@ -157,7 +170,27 @@ atom@XRobot:~$ /dev/AHRS test
 零漂: -0.120239 度/分钟
 ```
 
+## **USB to CAN模式**
+
+```shell
+atom@XRobot:~$ can
+monitor [number: 1-32] [timeout] 监控指定数量的can包
+atom@XRobot:~$ can monitor 5 100
+CanId ID:00000030 DATA:fe ff 03 00 f6 03 a5 ef
+CanId ID:00000031 DATA:fc ff 0d 00 00 00 a5 ef
+CanId ID:00000032 DATA:be 3c b6 20 44 8d a5 ef
+CanId ID:00000034 DATA:de 3d 60 00 38 00 a5 ef
+CanId ID:00000033 DATA:32 00 32 00 77 75 a5 ef
+CanId ID:00000030 DATA:fe ff 04 00 f7 03 a5 ef
+CanId ID:00000031 DATA:fd ff 0d 00 00 00 a5 ef
+CanId ID:00000032 DATA:be 3c b6 20 44 8d a5 ef
+CanId ID:00000034 DATA:de 3d 60 00 37 00 a5 ef
+CanId ID:00000033 DATA:32 00 32 00 77 75 a5 ef
+```
+
 ## **VOFA+ 可视化数据**
+
+请添加以下自定义命令：
 
 ```shell
 /dev/AHRS print_quat 1000000 1\r\n
@@ -166,6 +199,13 @@ atom@XRobot:~$ /dev/AHRS test
 ## **传输协议**
 
 ### **UART 协议**
+
+UART总共会收到两种类型的数据，分别是数据帧（Data）和CAN透传帧（DataCanToUart）。
+
+- 数据帧包括：前缀，ID，时间戳，四元数，陀螺仪，加速度，CRC8校验。
+- CAN透传帧包括：前缀，ID，数据，CRC8校验。
+
+CAN透传帧既可以由控制器发送给本模块，也可以由本模块发送给控制器，实现can接口的拓展。
 
 ```cpp
 typedef struct __attribute__((packed)) {
@@ -185,6 +225,13 @@ typedef struct __attribute__((packed)) {
   Vector3 accl;
   uint8_t crc8;
 } Data;
+
+typedef struct __attribute__((packed)) {
+  uint8_t prefix;
+  uint32_t id;
+  uint8_t data[8];
+  uint8_t crc8;
+} DataCanToUart;
 ```
 
 ### **CAN 协议**

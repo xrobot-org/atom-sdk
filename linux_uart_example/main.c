@@ -1,21 +1,26 @@
+#include <errno.h>
 #include <fcntl.h>
+#include <linux/serial.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
 #define IMU_ID (0x30)
 #define UART_PORT ("/dev/ttyCH343USB1")
 
+/* Structure for 3D vector (e.g., acceleration, gyroscope) */
 typedef struct __attribute__((packed)) {
   float x;
   float y;
   float z;
 } Vector3;
 
+/* Structure for quaternion representation of rotation */
 typedef struct __attribute__((packed)) {
   float q0;
   float q1;
@@ -23,24 +28,35 @@ typedef struct __attribute__((packed)) {
   float q3;
 } Quaternion;
 
+/* Structure for Euler angles representation of rotation */
 typedef struct __attribute__((packed)) {
   float yaw;
   float pit;
   float rol;
 } EulerAngles;
 
+/* Full data structure received from IMU sensor */
 typedef struct __attribute__((packed)) {
-  uint8_t prefix;
-  uint8_t id;
-  uint32_t time;
+  uint8_t prefix; /* Packet header (0xA5) */
+  uint8_t id;     /* IMU device ID (0x30) */
+  uint32_t time;  /* Timestamp */
   Quaternion quat_;
   Vector3 gyro_;
   Vector3 accl_;
   EulerAngles eulr_;
-  uint8_t crc8;
+  uint8_t crc8; /* CRC-8 checksum */
 } Data;
 
-#define DATA_LENGTH sizeof(Data)
+/* CAN Data Structure */
+typedef struct __attribute__((packed)) {
+  uint8_t prefix;
+  uint32_t id;
+  uint8_t data[8];
+  uint8_t crc8;
+} DataCanToUart;
+
+#define DATA_IMU_LENGTH sizeof(Data)
+#define DATA_CAN_LENGTH sizeof(DataCanToUart)
 
 static const uint8_t CRC8_TAB[256] = {
     0x00, 0x5e, 0xbc, 0xe2, 0x61, 0x3f, 0xdd, 0x83, 0xc2, 0x9c, 0x7e, 0x20,
@@ -82,7 +98,26 @@ bool VerifyData(const uint8_t *buf, size_t len) {
   return expected == buf[len - sizeof(uint8_t)];
 }
 
-int open_serial_port(const char *port) {
+/* Function to return a standard baud rate value */
+speed_t get_standard_baudrate(int baudrate) {
+  switch (baudrate) {
+  case 9600:
+    return B9600;
+  case 115200:
+    return B115200;
+  case 460800:
+    return B460800;
+  case 1000000:
+    return B1000000;
+  case 2000000:
+    return B2000000;
+  default:
+    return 0; /* Invalid baud rate */
+  }
+}
+
+/* Function to open and configure serial port with the specified baud rate */
+int open_serial_port(const char *port, int baudrate) {
   int fd = open(port, O_RDWR | O_NOCTTY);
   if (fd < 0) {
     perror("open_port: Unable to open");
@@ -98,32 +133,32 @@ int open_serial_port(const char *port) {
     return -1;
   }
 
-  cfsetospeed(&tty, B1000000);
-  cfsetispeed(&tty, B1000000);
+  /* Set baud rate */
+  speed_t baud = get_standard_baudrate(baudrate);
+  if (!baud) {
+    fprintf(stderr, "Unsupported baud rate: %d\n", baudrate);
+    close(fd);
+    return -1;
+  }
+  cfsetispeed(&tty, baud);
+  cfsetospeed(&tty, baud);
 
-  tty.c_cflag &= ~PARENB;        // Clear parity bit
-  tty.c_cflag &= ~CSTOPB;        // Clear stop field
-  tty.c_cflag &= ~CSIZE;         // Clear all the size bits
-  tty.c_cflag |= CS8;            // 8 bits per byte
-  tty.c_cflag &= ~CRTSCTS;       // Disable RTS/CTS hardware flow control
-  tty.c_cflag |= CREAD | CLOCAL; // Turn on READ & ignore control lines
+  /* Configure other serial port settings */
+  tty.c_cflag &= ~PARENB;
+  tty.c_cflag &= ~CSTOPB;
+  tty.c_cflag &= ~CSIZE;
+  tty.c_cflag |= CS8;
+  tty.c_cflag &= ~CRTSCTS;
+  tty.c_cflag |= CREAD | CLOCAL;
 
-  tty.c_lflag &= ~ICANON;
-  tty.c_lflag &= ~ECHO;   // Disable echo
-  tty.c_lflag &= ~ECHOE;  // Disable erasure
-  tty.c_lflag &= ~ECHONL; // Disable new-line echo
-  tty.c_lflag &= ~ISIG;   // Disable interpretation of INTR, QUIT and SUSP
-  tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
+  tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+  tty.c_iflag &= ~(IXON | IXOFF | IXANY);
   tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
+  tty.c_oflag &= ~(OPOST | ONLCR);
 
-  tty.c_oflag &= ~OPOST; // Prevent special interpretation of output bytes (e.g.
-                         // newline chars)
-  tty.c_oflag &=
-      ~ONLCR; // Prevent conversion of newline to carriage return/line feed
+  tty.c_cc[VTIME] = 10; /* 1-second timeout */
+  tty.c_cc[VMIN] = DATA_IMU_LENGTH;
 
-  tty.c_cc[VTIME] = 10; // Wait for up to 1s (10 deciseconds), returning as soon
-                        // as any data is received.
-  tty.c_cc[VMIN] = 128;
   if (tcsetattr(fd, TCSANOW, &tty) != 0) {
     perror("tcsetattr");
     close(fd);
@@ -132,39 +167,47 @@ int open_serial_port(const char *port) {
   return fd;
 }
 
-int main() {
+/* Main function */
+int main(int argc, char *argv[]) {
+  int baudrate = 1000000; /* Default baud rate */
+  if (argc > 1) {
+    baudrate = atoi(argv[1]); /* Allow user to specify baud rate */
+  }
+
   const char *serial_port = UART_PORT;
-  int serial_fd = open_serial_port(serial_port);
+  int serial_fd = open_serial_port(serial_port, baudrate);
   if (serial_fd < 0) {
     return EXIT_FAILURE;
   }
+
+  printf("Opened %s at %d baud.\n", serial_port, baudrate);
 
   Data received_data;
   ssize_t bytes_read;
 
   while (1) {
-    /* Find prefix */
-    do {
-      bytes_read = read(serial_fd, &received_data, 1);
-      if (bytes_read <= 0) {
-        exit(-1);
-      }
-    } while (received_data.prefix != 0xa5);
-
-    /* Read data */
-    while (bytes_read < DATA_LENGTH) {
-      bytes_read =
-          bytes_read + read(serial_fd, ((uint8_t *)&received_data) + bytes_read,
-                            DATA_LENGTH - bytes_read);
+    uint8_t prefix;
+    if (read(serial_fd, &prefix, 1) <= 0) {
+      perror("Read failed");
+      break;
     }
 
-    // 检查前缀和ID
-    if (received_data.prefix == 0xa5 && received_data.id == IMU_ID) {
-      if (VerifyData((uint8_t *)(&received_data), DATA_LENGTH)) {
-        printf("ID:%d Yaw: %+6f, Pitch: %+6f, Roll: %+6f, Ax:%+6f,  Ay:%+6f,"
-               "Az:%+6f, Gx:%+6f,  Gy:%+6f, Gz:%+6f,"
+    if (prefix == 0xA5) {
+      Data imu_data;
+      imu_data.prefix = prefix;
+      if (read(serial_fd, ((uint8_t *)&imu_data) + 1, DATA_IMU_LENGTH - 1) !=
+          DATA_IMU_LENGTH - 1) {
+        perror("Read failed");
+        continue;
+      }
+
+      if (VerifyData((uint8_t *)&imu_data, DATA_IMU_LENGTH)) {
+        memcpy(&received_data, &imu_data, sizeof(Data));
+        printf("Time:%d ID:%d Yaw: %+6f, Pitch: %+6f, Roll: %+6f, Ax:%+6f, "
+               "Ay:%+6f, "
+               "Az:%+6f, Gx:%+6f, Gy:%+6f, Gz:%+6f, "
                "Q0:%+6f, Q1:%+6f, Q2:%+6f, Q3:%+6f\n",
-               received_data.id, received_data.eulr_.yaw,
+               received_data.time, received_data.id, received_data.eulr_.yaw,
                received_data.eulr_.pit, received_data.eulr_.rol,
                received_data.accl_.x, received_data.accl_.y,
                received_data.accl_.z, received_data.gyro_.x,
@@ -172,11 +215,28 @@ int main() {
                received_data.quat_.q0, received_data.quat_.q1,
                received_data.quat_.q2, received_data.quat_.q3);
       } else {
-        printf("CRC check failed.\n");
+        printf("IMU CRC check failed.\n");
+      }
+    } else if (prefix == 0xA6) {
+      DataCanToUart can_data;
+      can_data.prefix = prefix;
+      if (read(serial_fd, ((uint8_t *)&can_data) + 1, DATA_CAN_LENGTH - 1) !=
+          DATA_CAN_LENGTH - 1) {
+        perror("Read failed");
+        continue;
+      }
+
+      if (VerifyData((uint8_t *)&can_data, DATA_CAN_LENGTH)) {
+        printf("CAN: ID:%d, Data: ", can_data.id);
+        for (int i = 0; i < 8; i++)
+          printf("%02X ", can_data.data[i]);
+        printf("\n");
+        write(serial_fd, ((uint8_t *)&can_data), DATA_CAN_LENGTH);
+      } else {
+        printf("CAN CRC check failed.\n");
       }
     }
   }
-
   close(serial_fd);
   return EXIT_SUCCESS;
 }

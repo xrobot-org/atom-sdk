@@ -41,6 +41,8 @@ XT30: `24V_IN`
 
 ### linux_uart_example
 
+![linux_uart_example](./img/linux_uart_example.png)
+
 please use [wch official usb driver](https://github.com/WCHSoftGroup/ch343ser_linux) for stability.
 
 ```shell
@@ -126,20 +128,25 @@ atom@XRobot:~$
 
 ```shell
 atom@XRobot:~$ set_imu
-
-# can/canfd
+# Set mode: CAN / CANFD
 can mode
-# accl/gyro/quat/eulr
+# Set data type: Acceleration, Gyroscope, Quaternion, Euler angles
 data:accl,gyro,quat,eulr,
-# 1-1000
-feedback delay:2
-# CAN ID
+# Enable UART output
+uart output enabled.
+# CAN_BRIDGE mode (Forward CAN data received via UART; enabling this mode forces the data UART baud rate to 2Mbps)
+can bridge mode enabled.
+# Set feedback delay (unit: milliseconds, range: 1-1000)
+feedback delay:1
+# Set CAN ID
 id:48
 
 Usage:
- set_delay  [time]       设置发送延时ms
- set_can_id [id]         设置can id
- enable/disable     [accl/gyro/quat/eulr/canfd]
+	set_delay  [time]  Set transmission delay in ms
+	set_can_id [id]    Set CAN ID
+	enable/disable     [accl/gyro/quat/eulr/canfd/can/uart/can_bridge]
+	set_uart_baud      [0:9600 1:100000 2:115200 3:460800 4:921600 5:1000000 6:2000000]
+	set_uart_parity    [0:None, 1:Odd, 2:Even]
 ```
 
 ### calibration
@@ -182,9 +189,27 @@ atom@XRobot:~$ /dev/AHRS test
 零漂:-0.120239度/分钟
 ```
 
+## **USB to CAN Mode**
+
+```shell
+atom@XRobot:~$ can
+monitor [number: 1-32] [timeout] 监控指定数量的can包
+atom@XRobot:~$ can monitor 5 100
+CanId ID:00000030 DATA:fe ff 03 00 f6 03 a5 ef
+CanId ID:00000031 DATA:fc ff 0d 00 00 00 a5 ef
+CanId ID:00000032 DATA:be 3c b6 20 44 8d a5 ef
+CanId ID:00000034 DATA:de 3d 60 00 38 00 a5 ef
+CanId ID:00000033 DATA:32 00 32 00 77 75 a5 ef
+CanId ID:00000030 DATA:fe ff 04 00 f7 03 a5 ef
+CanId ID:00000031 DATA:fd ff 0d 00 00 00 a5 ef
+CanId ID:00000032 DATA:be 3c b6 20 44 8d a5 ef
+CanId ID:00000034 DATA:de 3d 60 00 37 00 a5 ef
+CanId ID:00000033 DATA:32 00 32 00 77 75 a5 ef
+```
+
 ### View data on VOFA+
 
-Add custom command on VOFA+
+Please add the following custom commands:
 
 ```shell
 /dev/AHRS print_quat 1000000 1\r\n
@@ -201,6 +226,12 @@ Add custom command on VOFA+
 ## Protocol
 
 ### UART
+
+UART will receive two types of data: Data Frames (Data) and CAN Transparent Transmission Frames (DataCanToUart).
+
+* Data Frame includes: Prefix, ID, Timestamp, Quaternion, Gyroscope, Acceleration, and CRC8 Checksum.
+* CAN Transparent Transmission Frame includes: Prefix, ID, Data, and CRC8 Checksum.
+The CAN Transparent Transmission Frame can be sent either from the controller to this module or from this module to the controller, enabling CAN interface extension.
 
 ```c++
 typedef struct __attribute__((packed)) {
@@ -232,6 +263,13 @@ typedef struct __attribute__((packed)) {
   EulerAngles eulr;
   uint8_t crc8;
 } Data;
+
+typedef struct __attribute__((packed)) {
+  uint8_t prefix;
+  uint32_t id;
+  uint8_t data[8];
+  uint8_t crc8;
+} DataCanToUart;
 ```
 
 ### CAN
