@@ -180,6 +180,40 @@ atom@XRobot:~$ icm42688 cali
 ...
 ```
 
+A well-calibrated result for a single axis (data evenly distributed with a small standard deviation):
+
+```shell
+atom@XRobot:~$ bmi088 cali
+Calibration started, please keep the gyroscope stable. 
+A total of six orientations need to be calibrated, with five cycles for each orientation. Please be patient.
+Cycle 0 results: gx:0.006655 gy:-0.001768 gz:-0.000242 ax:-0.995890 ay:-0.025403 az:0.017022
+Cycle 1 results: gx:0.006607 gy:-0.001795 gz:-0.000210 ax:-0.995826 ay:-0.025389 az:0.017130
+Cycle 2 results: gx:0.006648 gy:-0.001823 gz:-0.000215 ax:-0.995846 ay:-0.025392 az:0.017057
+Cycle 3 results: gx:0.006646 gy:-0.001818 gz:-0.000261 ax:-0.995899 ay:-0.025318 az:0.017129
+Cycle 4 results: gx:0.006620 gy:-0.001803 gz:-0.000195 ax:-0.995871 ay:-0.025370 az:0.017050
+Calibration result: x:0.006635 y:-0.001801 z:-0.000225 accl:-0.995871
+```
+
+If the data exhibits an increasing/decreasing trend or significant fluctuations, recalibration is required.
+Each axis can be calibrated multiple times, and the order is not fixed.
+
+For the final calibration result, the standard is that each error value in the error matrix should be less than 0.0001 (a few slightly above 0.0001 are acceptable):
+
+```shell
+atom@XRobot:~$ bmi088 cal_cali
+x:  0.000062  0.000040 -0.000053  0.006701
+y:  0.000030  0.000051 -0.000048 -0.001750
+z: -0.000028 -0.000026  0.000058 -0.000260
+error:
+-0.000004 -0.000021 +0.000007
++0.000079 +0.000039 -0.000050
+-0.000106 -0.000033 +0.000062
+-0.000026 -0.000000 +0.000010
++0.000062 +0.000021 -0.000091
++0.000016 +0.000004 +0.000024
+All calibration steps have been completed.
+```
+
 ### Measure zero offset
 
 ```shell
