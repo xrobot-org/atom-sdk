@@ -80,10 +80,16 @@ gcc main.c -o main
 
 ### **ROS 示例**
 
+VERSION=`rolling`
+
+#### 发布
+
 ```shell
 colcon build
 ros2 run imu_publisher node_imu
 ```
+
+#### 订阅
 
 ```shell
 colcon build
@@ -247,6 +253,14 @@ CanId ID:00000033 DATA:32 00 32 00 77 75 a5 ef
 /dev/AHRS print_quat 1000000 1\r\n
 ```
 
+## 3D 模型
+
+[Top Model](./3D/imu_top.step)
+
+[Bottom Model](./3D/imu_bottom.step)
+
+![View](./img/xrobot-atom.png)
+
 ## **传输协议**
 
 ### **UART 协议**
@@ -348,16 +362,17 @@ typedef struct __attribute__((packed)) {
 
 ## **固件更新**
 
-⚠ **注意：请勿擦除整个 Flash！**
+<font color=red>⚠ **注意：请勿擦除整个 Flash！**</font>
 
 1. 获取最新固件：参考 `firmware` 目录。
-2. 进入 Bootloader 模式：
+1. 进入 Bootloader 模式：
 
    ```sh
    power bl
    ```
 
-3. 使用 `STM32CubeProgrammer` 或 `stm32flash` 进行 UART 刷写。
+1. 使用 `STM32CubeProgrammer` 或 `stm32flash` 进行 UART 刷写。
+1. 重启
 
 ## **相关资源**
 

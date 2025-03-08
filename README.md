@@ -251,9 +251,9 @@ Please add the following custom commands:
 
 ## 3D Model
 
-[Top Model](./3D/top.STEP)
+[Top Model](./3D/imu_top.step)
 
-[Bottom Model](./3D/bottom.STEP)
+[Bottom Model](./3D/imu_bottom.step)
 
 ![View](./img/xrobot-atom.png)
 
@@ -357,7 +357,7 @@ typedef struct __attribute__((packed)) {
 
 ## Update Firmware
 
-<font color=red>Important: Never erase the entire flash!!!</font>
+<font color=red>⚠Important: Never erase the entire flash!!!</font>
 
 1. Get the latest firmware
 
@@ -378,7 +378,6 @@ typedef struct __attribute__((packed)) {
 1. Reboot
 
     Restart the power supply.
-
 
 ## [Video](https://www.bilibili.com/video/BV1iespeLE5S/?share_source=copy_web&vd_source=941b1c3432c2b11a6c408c836c9e2887)
 
