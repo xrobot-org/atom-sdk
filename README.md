@@ -311,7 +311,7 @@ typedef struct __attribute__((packed)) {
 ```c++
 struct __attribute__((packed)) {
   uint32_t id;
-  uint16_t data[4];
+  int16_t data[4];
 }can_pack;
 
 switch (can_pack.id) {
