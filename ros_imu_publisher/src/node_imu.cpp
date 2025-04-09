@@ -183,7 +183,17 @@ public:
     if (received_data.prefix == 0xa5 &&
         VerifyData((uint8_t *)(&received_data), DATA_LENGTH)) {
       // 填充imu_msg
-      imu_msg.header.stamp = this->now();
+      auto now = std::chrono::system_clock::now();
+      auto now_us =
+          std::chrono::time_point_cast<std::chrono::microseconds>(now);
+      auto epoch = now_us.time_since_epoch();
+      auto secs = std::chrono::duration_cast<std::chrono::seconds>(epoch);
+      auto usecs =
+          std::chrono::duration_cast<std::chrono::microseconds>(epoch - secs);
+
+      imu_msg.header.stamp.sec = secs.count();
+      imu_msg.header.stamp.nanosec = usecs.count() * 1000; // 转换为纳秒
+
       imu_msg.orientation.x = received_data.quat_.q1;
       imu_msg.orientation.y = received_data.quat_.q2;
       imu_msg.orientation.z = received_data.quat_.q3;

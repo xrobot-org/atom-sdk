@@ -9,3 +9,4 @@ ros_imu_subscriber/build/**
 ros_imu_subscriber/install/**
 ros_imu_subscriber/log/**
 linux_uart_example/main
+*.csv
