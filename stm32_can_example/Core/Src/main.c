@@ -21,7 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <math.h>
 #include <string.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,7 +35,17 @@
 /* USER CODE BEGIN PD */
 #define IMU_DEVICE_ID (0x30)
 
-#define M_2PI 6.28318530717958647692f
+#define M_PI 3.14159265358979323846
+#define M_2PI 6.28318530717958647692
+
+/* CAN Packet IDs */
+#define CAN_PACK_ID_ACCL 0
+#define CAN_PACK_ID_GYRO 1
+#define CAN_PACK_ID_EULR 3
+#define CAN_PACK_ID_QUAT 4
+
+/* Encoder constants */
+#define ENCODER_21_MAX_INT ((1u << 21) - 1)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,18 +66,70 @@ typedef struct {
   uint8_t data[64];
 } can_raw_rx_t;
 
+/* CANFD Data Structure - matches C++ DataCanfd struct */
+typedef struct __attribute__((packed)) {
+  uint64_t time : 48;
+  uint64_t sync : 48;
+  float quat[4]; /* w, x, y, z */
+  float gyro[3]; /* x, y, z */
+  float accl[3]; /* x, y, z */
+  float eulr[3]; /* pitch, roll, yaw */
+} CanfdData;
+
+/* CAN Classic Data Structures */
+typedef union {
+  struct __attribute__((packed)) {
+    int32_t data1 : 21;
+    int32_t data2 : 21;
+    int32_t data3 : 21;
+    int32_t res : 1;
+  };
+  struct __attribute__((packed)) {
+    uint32_t data1_unsigned : 21;
+    uint32_t data2_unsigned : 21;
+    uint32_t data3_unsigned : 21;
+    uint32_t res_unsigned : 1;
+  };
+  uint8_t raw[8];
+} CanData3;
+
+typedef struct __attribute__((packed)) {
+  union {
+    int16_t data[4];
+    uint16_t data_unsigned[4];
+  };
+} CanData4;
+
+/* Decoded IMU Data */
+typedef struct {
+  struct {
+    float x, y, z;
+  } accl;
+  struct {
+    float x, y, z;
+  } gyro;
+  struct {
+    float pitch, roll, yaw;
+  } eulr;
+  struct {
+    float w, x, y, z;
+  } quat;
+  uint64_t timestamp;
+  uint64_t sync_time;
+} ImuData;
+
 can_raw_rx_t rx_buff;
-Data data;
-UartData uart_data;
+ImuData imu_data;
 uint32_t pack_count = 0;
-float pps = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+static float DecodeFloat21(uint32_t encoded, float min, float max);
+static float DecodeInt16Normalized(int16_t value);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -94,6 +158,14 @@ static const uint8_t CRC8_TAB[256] = {
     0x74, 0x2a, 0xc8, 0x96, 0x15, 0x4b, 0xa9, 0xf7, 0xb6, 0xe8, 0x0a, 0x54,
     0xd7, 0x89, 0x6b, 0x35};
 
+/**
+ * @brief Calculate CRC8
+ * 
+ * @param buf Data buffer
+ * @param len Data length
+ * @param crc Initial CRC
+ * @return uint8_t Calculated CRC
+ */
 uint8_t CalculateCRC8(const uint8_t *buf, size_t len, uint8_t crc) {
   while (len-- > 0) {
     crc = CRC8_TAB[(crc ^ *buf++) & 0xff];
@@ -101,46 +173,130 @@ uint8_t CalculateCRC8(const uint8_t *buf, size_t len, uint8_t crc) {
   return crc;
 }
 
+/**
+ * @brief Decode 21-bit unsigned integer to float
+ * @param encoded 21-bit encoded value
+ * @param min Minimum float value
+ * @param max Maximum float value
+ * @return Decoded float value
+ */
+static float DecodeFloat21(uint32_t encoded, float min, float max) {
+  float norm =
+      (float)(encoded & ENCODER_21_MAX_INT) / (float)ENCODER_21_MAX_INT;
+  return min + norm * (max - min);
+}
+
+/**
+ * @brief Decode int16 normalized value to float (for quaternion)
+ * @param value int16 value
+ * @return Normalized float [-1, 1]
+ */
+static float DecodeInt16Normalized(int16_t value) {
+  return (float)value / (float)INT16_MAX;
+}
+
+/**
+ * @brief Process CAN-FD packet
+ */
+static void ProcessCanfdPacket(uint8_t *data) {
+  CanfdData *canfd_data = (CanfdData *)data;
+
+  imu_data.timestamp = canfd_data->time;
+  imu_data.sync_time = canfd_data->sync;
+
+  /* Quaternion */
+  imu_data.quat.w = canfd_data->quat[0];
+  imu_data.quat.x = canfd_data->quat[1];
+  imu_data.quat.y = canfd_data->quat[2];
+  imu_data.quat.z = canfd_data->quat[3];
+
+  /* Gyroscope */
+  imu_data.gyro.x = canfd_data->gyro[0];
+  imu_data.gyro.y = canfd_data->gyro[1];
+  imu_data.gyro.z = canfd_data->gyro[2];
+
+  /* Accelerometer */
+  imu_data.accl.x = canfd_data->accl[0];
+  imu_data.accl.y = canfd_data->accl[1];
+  imu_data.accl.z = canfd_data->accl[2];
+
+  /* Euler angles */
+  imu_data.eulr.pitch = canfd_data->eulr[0];
+  imu_data.eulr.roll = canfd_data->eulr[1];
+  imu_data.eulr.yaw = canfd_data->eulr[2];
+}
+
+/**
+ * @brief Process Classic CAN packet
+ */
+static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
+  uint32_t packet_type = id - IMU_DEVICE_ID;
+
+  switch (packet_type) {
+  case CAN_PACK_ID_ACCL: {
+    /* Accelerometer data: ±24g range */
+    CanData3 *can_data = (CanData3 *)data;
+    imu_data.accl.x = DecodeFloat21(can_data->data1_unsigned, -24.0f, 24.0f);
+    imu_data.accl.y = DecodeFloat21(can_data->data2_unsigned, -24.0f, 24.0f);
+    imu_data.accl.z = DecodeFloat21(can_data->data3_unsigned, -24.0f, 24.0f);
+    break;
+  }
+
+  case CAN_PACK_ID_GYRO: {
+    /* Gyroscope data: ±2000 deg/s converted to rad/s */
+    CanData3 *can_data = (CanData3 *)data;
+    float min_gyro = -2000.0f * M_PI / 180.0f;
+    float max_gyro = 2000.0f * M_PI / 180.0f;
+    imu_data.gyro.x =
+        DecodeFloat21(can_data->data1_unsigned, min_gyro, max_gyro);
+    imu_data.gyro.y =
+        DecodeFloat21(can_data->data2_unsigned, min_gyro, max_gyro);
+    imu_data.gyro.z =
+        DecodeFloat21(can_data->data3_unsigned, min_gyro, max_gyro);
+    break;
+  }
+
+  case CAN_PACK_ID_EULR: {
+    /* Euler angles: ±π rad */
+    CanData3 *can_data = (CanData3 *)data;
+    imu_data.eulr.pitch = DecodeFloat21(can_data->data1_unsigned, -M_PI, M_PI);
+    imu_data.eulr.roll = DecodeFloat21(can_data->data2_unsigned, -M_PI, M_PI);
+    imu_data.eulr.yaw = DecodeFloat21(can_data->data3_unsigned, -M_PI, M_PI);
+    break;
+  }
+
+  case CAN_PACK_ID_QUAT: {
+    /* Quaternion data: normalized int16 */
+    CanData4 *can_data = (CanData4 *)data;
+    imu_data.quat.w = DecodeInt16Normalized(can_data->data[0]);
+    imu_data.quat.x = DecodeInt16Normalized(can_data->data[1]);
+    imu_data.quat.y = DecodeInt16Normalized(can_data->data[2]);
+    imu_data.quat.z = DecodeInt16Normalized(can_data->data[3]);
+    break;
+  }
+
+  default:
+    /* Unknown packet type */
+    break;
+  }
+}
+
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hcan, uint32_t RxFifo0ITs) {
   (void)RxFifo0ITs;
   while (HAL_FDCAN_GetRxMessage(hcan, FDCAN_RX_FIFO0, &rx_buff.header,
                                 rx_buff.data) == HAL_OK) {
     pack_count++;
-    if (rx_buff.header.FDFormat == FDCAN_CLASSIC_CAN) {
-      int16_t *tmp = (int16_t *)(rx_buff.data);
-      switch (rx_buff.header.Identifier) {
-      case IMU_DEVICE_ID:
-        data.accl_.x = (float)(tmp[0]) / 32767.0f * 16.0f;
-        data.accl_.y = (float)(tmp[1]) / 32767.0f * 16.0f;
-        data.accl_.z = (float)(tmp[2]) / 32767.0f * 16.0f;
-        break;
-      case IMU_DEVICE_ID + 1:
-        data.gyro_.x = (float)(tmp[0]) / 32767.0f * 34.90658502f;
-        data.gyro_.y = (float)(tmp[1]) / 32767.0f * 34.90658502f;
-        data.gyro_.z = (float)(tmp[2]) / 32767.0f * 34.90658502f;
-        break;
-      case IMU_DEVICE_ID + 3:
-        data.eulr_.pit = (float)(tmp[0]) / 32767.0f * M_2PI;
-        data.eulr_.rol = (float)(tmp[1]) / 32767.0f * M_2PI;
-        data.eulr_.yaw = (float)(tmp[2]) / 32767.0f * M_2PI;
-        break;
-      case IMU_DEVICE_ID + 4:
-        data.quat_.q0 = (float)(tmp[0]) / 32767.0f * 2.0f;
-        data.quat_.q1 = (float)(tmp[1]) / 32767.0f * 2.0f;
-        data.quat_.q2 = (float)(tmp[2]) / 32767.0f * 2.0f;
-        data.quat_.q3 = (float)(tmp[3]) / 32767.0f * 2.0f;
-        break;
-      default:
-        __NOP();
-        continue;
+
+    if (rx_buff.header.FDFormat == FDCAN_FD_CAN) {
+      /* CAN-FD packet */
+      if (rx_buff.header.Identifier == IMU_DEVICE_ID &&
+          rx_buff.header.DataLength == FDCAN_DLC_BYTES_64) {
+        ProcessCanfdPacket(rx_buff.data);
       }
     } else {
-      if (rx_buff.header.Identifier == IMU_DEVICE_ID) {
-        memcpy(&data, rx_buff.data, sizeof(data));
-      }
+      /* Classic CAN packet */
+      ProcessClassicCanPacket(rx_buff.header.Identifier, rx_buff.data);
     }
-
-    return;
   }
 }
 /* USER CODE END 0 */
@@ -180,6 +336,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   FDCAN_FilterTypeDef can_filter = {0};
 
+  /* Configure standard ID filter */
   can_filter.IdType = FDCAN_STANDARD_ID;
   can_filter.FilterIndex = 0;
   can_filter.FilterType = FDCAN_FILTER_MASK;
@@ -190,6 +347,7 @@ int main(void)
     Error_Handler();
   }
 
+  /* Configure extended ID filter */
   can_filter.IdType = FDCAN_EXTENDED_ID;
   can_filter.FilterIndex = 1;
   can_filter.FilterType = FDCAN_FILTER_MASK;
@@ -200,30 +358,33 @@ int main(void)
     Error_Handler();
   }
 
+  /* Start FDCAN */
   HAL_FDCAN_Start(&hfdcan1);
   HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
-  HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_TX_FIFO_EMPTY, 0);
 
-  uint32_t time = HAL_GetTick();
+  /* Initialize IMU data structure */
+  memset(&imu_data, 0, sizeof(imu_data));
+  imu_data.quat.w = 1.0f; /* Initialize quaternion to identity */
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
     HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
-    pps = (float)(pack_count) * 1000.0f / (float)(HAL_GetTick() - time);
-    time = HAL_GetTick();
-    pack_count = 0;
-    for (int i = 0; i < 500; i++) {
-      memcpy(&(uart_data.data), &data, sizeof(data));
-      uart_data.prefix = 0xa5;
-      uart_data.id = IMU_DEVICE_ID;
-      uart_data.crc8 = CalculateCRC8((uint8_t *)(&uart_data),
-                                     sizeof(uart_data) - sizeof(uint8_t), 0xff);
-      HAL_UART_Transmit_DMA(&huart1, (uint8_t *)(&uart_data),
-                            sizeof(uart_data));
-      HAL_Delay(0);
-    }
+
+    /* 在这里可以使用解析后的IMU数据 */
+    /* Use decoded IMU data here */
+    /*
+     * imu_data.gyro.x/y/z - 陀螺仪数据 (rad/s)
+     * imu_data.accl.x/y/z - 加速度计数据 (g)
+     * imu_data.quat.w/x/y/z - 四元数
+     * imu_data.eulr.pitch/roll/yaw - 欧拉角 (rad)
+     * imu_data.timestamp - 时间戳
+     * imu_data.sync_time - 同步时间
+     */
+
+    HAL_Delay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -396,8 +557,8 @@ void MX_DMA_Init(void)
 void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -413,8 +574,8 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_RUN_GPIO_Port, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -434,7 +595,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM15) {
+  if (htim->Instance == TIM15)
+  {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
@@ -455,8 +617,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
