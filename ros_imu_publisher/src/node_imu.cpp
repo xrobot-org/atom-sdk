@@ -33,20 +33,20 @@ typedef struct __attribute__((packed)) {
 } Quaternion;
 
 typedef struct __attribute__((packed)) {
-  float yaw;
-  float pit;
   float rol;
+  float pit;
+  float yaw;
 } EulerAngles;
 
 typedef struct __attribute__((packed)) {
-  uint8_t prefix;
-  uint8_t id;
-  uint32_t time;
+  uint8_t prefix; /* Packet header (0xA5) */
+  uint64_t time : 40;
+  uint64_t sync : 40;
   Quaternion quat_;
   Vector3 gyro_;
   Vector3 accl_;
   EulerAngles eulr_;
-  uint8_t crc8;
+  uint8_t crc8; /* CRC-8 checksum */
 } Data;
 
 // CRC8校验表
@@ -87,7 +87,6 @@ bool VerifyData(const uint8_t *buf, size_t len) {
   if (len < 2) {
     return false;
   }
-
   uint8_t expected = CalculateCRC8(buf, len - sizeof(uint8_t), 0xff);
   return expected == buf[len - sizeof(uint8_t)];
 }
@@ -134,7 +133,7 @@ int open_serial_port(const char *port) {
 
   tty.c_cc[VTIME] = 10; // Wait for up to 1s (10 deciseconds), returning as soon
                         // as any data is received.
-  tty.c_cc[VMIN] = 128;
+  tty.c_cc[VMIN] = 64;
   if (tcsetattr(fd, TCSANOW, &tty) != 0) {
     perror("tcsetattr");
     close(fd);
@@ -153,6 +152,10 @@ public:
       RCLCPP_FATAL(this->get_logger(), "Failed to open serial port.");
       throw std::runtime_error("Serial port initialization failed.");
     }
+    // 新增：初始化同步相关变量
+    first_imu_time_ = 0;
+    first_local_time_ = 0;
+    has_sync_ = false;
 
     timer_ = this->create_wall_timer(std::chrono::milliseconds(1),
                                      [this]() { this->publish_imu_data(); });
@@ -182,17 +185,36 @@ public:
     // 检查前缀和ID
     if (received_data.prefix == 0xa5 &&
         VerifyData((uint8_t *)(&received_data), DATA_LENGTH)) {
-      // 填充imu_msg
+
+      // ------- IMU时间与本地系统时间同步 -------
+      // IMU时间，单位微秒
+      uint64_t imu_time_us = received_data.time;
+
+      // 获取当前本地系统UNIX时间，单位微秒
       auto now = std::chrono::system_clock::now();
       auto now_us =
           std::chrono::time_point_cast<std::chrono::microseconds>(now);
       auto epoch = now_us.time_since_epoch();
-      auto secs = std::chrono::duration_cast<std::chrono::seconds>(epoch);
-      auto usecs =
-          std::chrono::duration_cast<std::chrono::microseconds>(epoch - secs);
+      uint64_t local_time_us = epoch.count();
 
-      imu_msg.header.stamp.sec = secs.count();
-      imu_msg.header.stamp.nanosec = usecs.count() * 1000; // 转换为纳秒
+      // 第一次收到数据时，记录对齐参考点
+      if (!has_sync_) {
+        first_imu_time_ = imu_time_us;
+        first_local_time_ = local_time_us;
+        has_sync_ = true;
+        RCLCPP_INFO(this->get_logger(),
+                    "Sync ref: imu_time=%llu, local_time=%llu",
+                    (unsigned long long)first_imu_time_,
+                    (unsigned long long)first_local_time_);
+      }
+
+      // 用IMU上电时间戳推算本地UNIX时间戳
+      uint64_t aligned_time_us =
+          first_local_time_ + (imu_time_us - first_imu_time_);
+
+      // 填充ROS header.stamp
+      imu_msg.header.stamp.sec = aligned_time_us / 1000000;
+      imu_msg.header.stamp.nanosec = (aligned_time_us % 1000000) * 1000;
 
       imu_msg.orientation.x = received_data.quat_.q1;
       imu_msg.orientation.y = received_data.quat_.q2;
@@ -209,8 +231,10 @@ public:
       imu_publisher_->publish(imu_msg);
 
       RCLCPP_INFO(this->get_logger(),
-                  "time:%d yaw: %+6f, pitch: %+6f, roll: %+6f",
-                  received_data.time, received_data.eulr_.yaw,
+                  "imu_time(us):%llu, unix_time(us):%llu, yaw: %+6f, pitch: "
+                  "%+6f, roll: %+6f",
+                  (unsigned long long)imu_time_us,
+                  (unsigned long long)aligned_time_us, received_data.eulr_.yaw,
                   received_data.eulr_.pit, received_data.eulr_.rol);
     } else {
       std::cerr << "CRC check failed." << std::endl;
@@ -223,6 +247,11 @@ private:
   Data received_data;
   rclcpp::TimerBase::SharedPtr timer_;
   int serial_fd;
+
+  // 新增同步参考变量
+  uint64_t first_imu_time_;
+  uint64_t first_local_time_;
+  bool has_sync_;
 };
 
 int main(int argc, char *argv[]) {

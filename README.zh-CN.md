@@ -86,6 +86,7 @@ VERSION=`rolling`
 
 ```shell
 colcon build
+source install/setup.zsh
 ros2 run imu_publisher node_imu
 ```
 
@@ -93,6 +94,7 @@ ros2 run imu_publisher node_imu
 
 ```shell
 colcon build
+source install/setup.zsh
 ros2 run imu_subscriber node_imu
 ```
 
@@ -362,17 +364,16 @@ typedef struct __attribute__((packed)) {
 
 ## **固件更新**
 
-<font color=red>⚠ **注意：请勿擦除整个 Flash！**</font>
+`<font color=red>`⚠ **注意：请勿擦除整个 Flash！**`</font>`
 
 1. 获取最新固件：参考 `firmware` 目录。
-1. 进入 Bootloader 模式：
+2. 进入 Bootloader 模式：
 
    ```sh
    power bl
    ```
-
-1. 使用 `STM32CubeProgrammer` 或 `stm32flash` 进行 UART 刷写。
-1. 重启
+3. 使用 `STM32CubeProgrammer` 或 `stm32flash` 进行 UART 刷写。
+4. 重启
 
 ## **相关资源**
 
