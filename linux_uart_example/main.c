@@ -33,9 +33,9 @@ typedef struct __attribute__((packed))
 /* Structure for Euler angles representation of rotation */
 typedef struct __attribute__((packed))
 {
-  float yaw;
-  float pit;
   float rol;
+  float pit;
+  float yaw;
 } EulerAngles;
 
 /* Full data structure received from IMU sensor */
@@ -233,12 +233,10 @@ int main(int argc, char *argv[])
       if (VerifyData((uint8_t *)&imu_data, DATA_IMU_LENGTH))
       {
         memcpy(&received_data, &imu_data, sizeof(Data));
-        printf("Time:%ld Sync:%ld Pitch: %+6f, Roll: %+6f, Ax:%+6f, "
-               "Ay:%+6f, "
-               "Az:%+6f, Gx:%+6f, Gy:%+6f, Gz:%+6f, "
-               "Q0:%+6f, Q1:%+6f, Q2:%+6f, Q3:%+6f\n",
-               received_data.time, received_data.sync, received_data.eulr_.yaw,
-               received_data.eulr_.pit, received_data.eulr_.rol,
+        printf("Time:%ld Sync:%ld Roll: %+6f, Pitch:%+6f, Yaw:%+6f, "
+               "Ax:%+6f, Ay:%+6f, Az:%+6f, Gx:%+6f, Gy:%+6f, Gz:%+6f, Q0:%+6f, Q1:%+6f, Q2:%+6f, Q3:%+6f\n",
+               received_data.time, received_data.sync, received_data.eulr_.rol,
+               received_data.eulr_.pit, received_data.eulr_.yaw,
                received_data.accl_.x, received_data.accl_.y,
                received_data.accl_.z, received_data.gyro_.x,
                received_data.gyro_.y, received_data.gyro_.z,
