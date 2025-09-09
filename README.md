@@ -1,255 +1,204 @@
-# ATOM-IMU Module based on XRobot
+# ATOM-IMU 模块 V4.5
 
 ![imu](./img/imu.jpg)
 
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+## **参数**
 
-## Parameter
+- **输出频率**：1-1000Hz
+- **支持电压**：5V/24V
+- **接口**：USB / UART / CANFD
+- **支持数据类型**：加速度计 (ACC) / 陀螺仪 (GYRO) / 欧拉角 (EULR) / 四元数 (QUAT)
+- **UART 波特率**：460800 (终端) / 1M (数据)
+- **CAN 波特率**：1M / 5M
+- **陀螺仪**：最大量程 ±2000DPS，分辨率 0.015DPS
+- **加速度计**：最大量程 ±24G，分辨率 0.0001G
 
-* Output Rate: 1-1000Hz
-* Support Voltage: 5V/24V
-* Port: USB/UART/CANFD
-* Support Data: ACCL/GYRO/EULR/QUAT
-* Uart Baudrate: 460800(Terminal)/1M(Data)
-* CAN Baudrate: 1M/5M
-* GYRO: FULL 2000DPS, Resolution 0.015DPS
-* ACCL: FULL 24G, Resolution 0.0001G
-
-## Output Test
+## **输出测试**
 
 ![data](./img/data.png)
 
-## Connection
+## **连接方式**
 
-USB-CH342: `UART_DATA(1M) UART_TERMINAL(460800)`
+- **USB-CH342**：`UART_DATA(1M) UART_TERMINAL(460800)`
+- **UART 1.25 4P**：
+  - `1: SYNC`
+  - `2: TX`
+  - `3: GND`
+  - `4: +5V_IN`
+- **CAN 1.25 2P**：
+  - `1: CANL`
+  - `2: CANH`
+- **XT30 供电**：`24V_IN`
 
-UART 1.25 4P: `1:RX 2:TX 3:GND 4:+5V_IN`
-
-CAN 1.25 2P:  `1:CANL CANH`
-
-XT30: `24V_IN`
-
-## Example
+## **示例代码**
 
 ```shell
-├── linux_uart_example      `UART Prase Example on Linux`
-├── ros_imu_publisher       `IMU Publisher on ROS`
-├── ros_imu_subscriber      `IMU Subscriber on ROS`
-├── ros_rviz_example.rviz   `IMU Data Visualization on ROS`
-└── stm32_can_example       `CAN/CANFD Prase Example on STM32`
+├── linux_uart_example      `Linux UART 解析示例`
+├── ros_imu_publisher       `ROS IMU 发布节点`
+├── ros_imu_subscriber      `ROS IMU 订阅节点`
+├── ros_rviz_example.rviz   `ROS RViz 可视化`
+└── stm32_can_example       `STM32 CAN/CANFD 解析示例`
 ```
 
-### linux_uart_example
+### **Linux UART 示例**
 
 ![linux_uart_example](./img/linux_uart_example.png)
 
-please use [wch official usb driver](https://github.com/WCHSoftGroup/ch343ser_linux) for stability.
+请使用 [wch 官方 USB 驱动](https://github.com/WCHSoftGroup/ch343ser_linux) 以确保稳定性。
 
 ```shell
-# generate signature
-sudo apt install mokutil
-sudo apt install shim-signed
+# 安装驱动
+sudo apt install mokutil shim-signed
 sudo update-secureboot-policy --new-key
 openssl req -new -x509 -newkey rsa:2048 -keyout MOK.priv -outform DER -out MOK.der -nodes -days 36500 -subj "/CN=Descriptive name/"
 sudo mokutil --import /var/lib/shim-signed/mok/MOK.der
 
-# reboot and enroll MOK
+# 重启并注册 MOK
 reboot
 
-# build driver
+# 下载并编译驱动
 git clone https://github.com/WCHSoftGroup/ch343ser_linux
 cd ch343ser_linux/driver
 make
 
-# sign driver
+# 签名驱动
 sudo /usr/src/linux-headers-$(uname -r)/scripts/sign-file sha256 /var/lib/shim-signed/mok/MOK.priv /var/lib/shim-signed/mok/MOK.der ch343.ko
 
-# install driver
+# 安装驱动
 sudo make install
-
 reboot
 ```
 
+编译并运行示例：
+
 ```shell
-# build example
 gcc main.c -o main
 ./main
 ```
 
-### ROS
+### **ROS 示例**
 
 VERSION=`rolling`
 
-#### ros_imu_publisher
+#### 发布
 
 ```shell
 colcon build
+source install/setup.zsh
 ros2 run imu_publisher node_imu
 ```
 
-#### ros_imu_subscriber
+#### 订阅
 
 ```shell
 colcon build
+source install/setup.zsh
 ros2 run imu_subscriber node_imu
 ```
 
-#### ros_rviz_example
+### **RViz 可视化**
 
-Open it in rviz2.
+使用 `ros_rviz_example.rviz` 在 RViz2 中打开。
 
-### stm32_can_example
+### **STM32 CAN 示例**
 
 ```shell
 make
 ```
 
-## Terminal
+## **终端交互**
+
+使用 `picocom`、`putty`、`MobaXTerm` 等工具进行交互，以460800波特率连接USB枚举出的第一个串口设备即可。例如 `USB-Enhanced-Serial-A CH342` 或 `/dev/ttyCH343USB0`。
+
+示例操作：
 
 ```shell
 linux@XRobot:~$ ls /dev/ttyCH*
 /dev/ttyCH343USB0  /dev/ttyCH343USB1
 
 linux@XRobot:~$ picocom /dev/ttyCH343USB0 -b 460800
- __  __ _      _ ___ _        _ _ 
-|  \/  (_)_ _ (_) __| |_  ___| | |
-| |\/| | | ' \| \__ \ ' \/ -_) | |
-|_|  |_|_|_||_|_|___/_||_\___|_|_|
-Build:Aug 31 2024 23:47:44
-version:1.0.6
-
-Welcome to use XRobot!
-atom@XRobot:~$ 
 ```
 
-![Terminal](./img/terminal.png)
-
-### set_imu
+回车后示例输出：
 
 ```shell
-atom@XRobot:~$ set_imu
-# Set mode: CAN / CANFD
-can mode
-# Set data type: Acceleration, Gyroscope, Quaternion, Euler angles
-data:accl,gyro,quat,eulr,
-# Enable UART output
+XRobot:/$
+```
+
+## **IMU 设置**
+
+```shell
+# 输入set_imu命令并回车
+XRobot:/$ set_imu
+# 这一行显示IMU CAN/CANFD输出的状态，CAN/CANFD/UART输出同时只能有一个开启
+can/canfd output disabled.
+# 这一行显示IMU 串口输出的状态
 uart output enabled.
-# CAN_BRIDGE mode (Forward CAN data received via UART; enabling this mode forces the data UART baud rate to 2Mbps)
-can bridge mode enabled.
-# Set feedback delay (unit: milliseconds, range: 1-1000)
+# 这一行表示帧同步信号的检测模式，第一个数字0表示不检测，1表示检测上升沿，2表示检测下降沿，3表示同时检测上升沿和下降沿
+# 第二个数字代表最近一次帧同步信号的时间，单位微秒
+FSYNC:0 0
+# 这一行显示两次反馈数据的时间间隔，单位毫秒
 feedback delay:1
-# Set CAN ID
+# 这一行显示IMU数据帧的ID
 id:48
 
 Usage:
-	set_delay  [time]  Set transmission delay in ms
-	set_can_id [id]    Set CAN ID
-	enable/disable     [accl/gyro/quat/eulr/canfd/can/uart/can_bridge]
-	set_uart_baud      [0:9600 1:100000 2:115200 3:460800 4:921600 5:1000000 6:2000000]
-	set_uart_parity    [0:None, 1:Odd, 2:Even]
+        set_delay  [time]  设置发送延时ms
+        set_can_id [id]    设置can id
+        # accl/gyro/quat/eulr只对can模式发送有效
+        enable/disable     [accl/gyro/quat/eulr/canfd/can/uart]
+        fsync              [0: disable 1: rise 2: fall 3: both]           设置fsync模式
 ```
 
-### calibration
+## **校准（Calibration）**
 
-The entire process takes about 20 minutes
+完整校准过程约需 **20 分钟**，过程中需要保证 IMU 稳定，每次更改IMU方向后需要等待1分钟以上来使角度稳定。校准的每一步都无顺序要求，可以多次尝试。
 
 ```shell
-#Align the X-axis with the direction of gravity
-atom@XRobot:~$ bmi088 cali
+# 上电后等待十分钟，IMU预热
+XRobot:/$ bmi088 show 600000 1000
+# IMU平放，LOGO面朝上
+XRobot:/$ bmi088 cali
 ...
-#Align the X-axis with the opposite direction of gravity
-atom@XRobot:~$ bmi088 cali
+# 校准误差绝对值在0.00003以下视为校准成功，理想情况下应当小于0.000015
+Calibration error -0.000013
+Calibration data saved.
+# 更改方向，USB接口面朝上
+XRobot:/$ bmi088 cali
 ...
-#Align the Y-axis with the direction of gravity
-atom@XRobot:~$ bmi088 cali
+# 侧放IMU，USB接口与XT30接口靠近桌面
+XRobot:/$ bmi088 cali
 ...
-#Align the Y-axis with the opposite direction of gravity
-atom@XRobot:~$ bmi088 cali
+# 再次将IMU平放，LOGO面朝上
+XRobot:/$ icm42688 cali
 ...
-#Align the Z-axis with the direction of gravity
-atom@XRobot:~$ bmi088 cali
-...
-#Align the Z-axis with the opposite direction of gravity
-atom@XRobot:~$ bmi088 cali
-...
-
-atom@XRobot:~$ bmi088 cal_cali
-
-#Align the Z-axis with the direction of gravity
-atom@XRobot:~$ icm42688 cali
-...
+# 搜索得到当地的经纬度，可在谷歌地图中直接右键复制。例如格拉斯哥的经纬度为：55.87241068336635 -4.290120205979219
+XRobot:/$ ahrs set_location 55.87241068336635 -4.290120205979219
+Done.
+# 校准完成
 ```
 
-A well-calibrated result for a single axis (data evenly distributed with a small standard deviation):
+## **测量零漂**
+
+仅作参考，以实际情况为准
 
 ```shell
-atom@XRobot:~$ bmi088 cali
-Calibration started, please keep the gyroscope stable. 
-A total of six orientations need to be calibrated, with five cycles for each orientation. Please be patient.
-Cycle 0 results: gx:0.006655 gy:-0.001768 gz:-0.000242 ax:-0.995890 ay:-0.025403 az:0.017022
-Cycle 1 results: gx:0.006607 gy:-0.001795 gz:-0.000210 ax:-0.995826 ay:-0.025389 az:0.017130
-Cycle 2 results: gx:0.006648 gy:-0.001823 gz:-0.000215 ax:-0.995846 ay:-0.025392 az:0.017057
-Cycle 3 results: gx:0.006646 gy:-0.001818 gz:-0.000261 ax:-0.995899 ay:-0.025318 az:0.017129
-Cycle 4 results: gx:0.006620 gy:-0.001803 gz:-0.000195 ax:-0.995871 ay:-0.025370 az:0.017050
-Calibration result: x:0.006635 y:-0.001801 z:-0.000225 accl:-0.995871
+XRobot:/$ ahrs test
+Please keep the device steady, start measurement
+Please wait
+Zero offset:-0.035189°/min
 ```
 
-If the data exhibits an increasing/decreasing trend or significant fluctuations, recalibration is required.
-Each axis can be calibrated multiple times, and the order is not fixed.
+## **VOFA+ 可视化数据**
 
-For the final calibration result, the standard is that each error value in the error matrix should be less than 0.0001 (a few slightly above 0.0001 are acceptable):
+请添加以下自定义命令，使用VOFA+可视化数据。
+数据分别为：w x y z pitch roll yaw
 
 ```shell
-atom@XRobot:~$ bmi088 cal_cali
-x:  0.000062  0.000040 -0.000053  0.006701
-y:  0.000030  0.000051 -0.000048 -0.001750
-z: -0.000028 -0.000026  0.000058 -0.000260
-error:
--0.000004 -0.000021 +0.000007
-+0.000079 +0.000039 -0.000050
--0.000106 -0.000033 +0.000062
--0.000026 -0.000000 +0.000010
-+0.000062 +0.000021 -0.000091
-+0.000016 +0.000004 +0.000024
-All calibration steps have been completed.
+ahrs print_quat 1000000 100\r\n
 ```
 
-### Measure zero offset
-
-```shell
-atom@XRobot:~$ /dev/AHRS test
-请保持静止，开始检测零漂
-请等待
-零漂:-0.120239度/分钟
-```
-
-## **USB to CAN Mode**
-
-```shell
-atom@XRobot:~$ can
-monitor [number: 1-32] [timeout] 监控指定数量的can包
-atom@XRobot:~$ can monitor 5 100
-CanId ID:00000030 DATA:fe ff 03 00 f6 03 a5 ef
-CanId ID:00000031 DATA:fc ff 0d 00 00 00 a5 ef
-CanId ID:00000032 DATA:be 3c b6 20 44 8d a5 ef
-CanId ID:00000034 DATA:de 3d 60 00 38 00 a5 ef
-CanId ID:00000033 DATA:32 00 32 00 77 75 a5 ef
-CanId ID:00000030 DATA:fe ff 04 00 f7 03 a5 ef
-CanId ID:00000031 DATA:fd ff 0d 00 00 00 a5 ef
-CanId ID:00000032 DATA:be 3c b6 20 44 8d a5 ef
-CanId ID:00000034 DATA:de 3d 60 00 37 00 a5 ef
-CanId ID:00000033 DATA:32 00 32 00 77 75 a5 ef
-```
-
-### View data on VOFA+
-
-Please add the following custom commands:
-
-```shell
-/dev/AHRS print_quat 1000000 1\r\n
-```
-
-## 3D Model
+## 3D 模型
 
 [Top Model](./3D/imu_top.step)
 
@@ -257,15 +206,11 @@ Please add the following custom commands:
 
 ![View](./img/xrobot-atom.png)
 
-## Protocol
+## **传输协议**
 
-### UART
+### **UART 协议**
 
-UART will receive two types of data: Data Frames (Data) and CAN Transparent Transmission Frames (DataCanToUart).
-
-* Data Frame includes: Prefix, ID, Timestamp, Quaternion, Gyroscope, Acceleration, and CRC8 Checksum.
-* CAN Transparent Transmission Frame includes: Prefix, ID, Data, and CRC8 Checksum.
-The CAN Transparent Transmission Frame can be sent either from the controller to this module or from this module to the controller, enabling CAN interface extension.
+- 数据帧包括：前缀，微秒时间戳，四元数，角速度，加速度，欧拉角，CRC8校验。
 
 ```c++
 typedef struct __attribute__((packed)) {
@@ -287,100 +232,164 @@ typedef struct __attribute__((packed)) {
   float rol;
 } EulerAngles;
 
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed))
+{
   uint8_t prefix;
-  uint8_t id;
-  uint32_t time_ms;
-  Quaternion quat;
-  Vector3 gyro;
-  Vector3 accl;
-  EulerAngles eulr;
-  uint8_t crc8;
-} Data;
-
-typedef struct __attribute__((packed)) {
-  uint8_t prefix;
-  uint32_t id;
-  uint8_t data[8];
-  uint8_t crc8;
-} DataCanToUart;
-```
-
-### CAN
-
-```c++
-struct __attribute__((packed)) {
-  uint32_t id;
-  int16_t data[4];
-}can_pack;
-
-switch (can_pack.id) {
-      case IMU_ID:
-        accl.x = (float)(can_pack.data[0]) / 32767.0f * 16.0f;
-        accl.y = (float)(can_pack.data[1]) / 32767.0f * 16.0f;
-        accl.z = (float)(can_pack.data[2]) / 32767.0f * 16.0f;
-        break;
-      case IMU_ID + 1:
-        gyro.x = (float)(can_pack.data[0]) / 32767.0f * 34.90658502f;
-        gyro.y = (float)(can_pack.data[1]) / 32767.0f * 34.90658502f;
-        gyro.z = (float)(can_pack.data[2]) / 32767.0f * 34.90658502f;
-        break;
-      case IMU_ID + 3:
-        eulr.pit = (float)(can_pack.data[0]) / 32767.0f * M_2PI;
-        eulr.rol = (float)(can_pack.data[1]) / 32767.0f * M_2PI;
-        eulr.yaw = (float)(can_pack.data[2]) / 32767.0f * M_2PI;
-        break;
-      case IMU_ID + 4:
-        quat.q0 = (float)(can_pack.data[0]) / 32767.0f * 2.0f;
-        quat.q1 = (float)(can_pack.data[1]) / 32767.0f * 2.0f;
-        quat.q2 = (float)(can_pack.data[2]) / 32767.0f * 2.0f;
-        quat.q3 = (float)(can_pack.data[3]) / 32767.0f * 2.0f;
-        break;
-      default:
-        break;
-      }
-```
-
-### CANFD
-
-```c++
- //CANID = IMU_ID
-
-typedef struct __attribute__((packed)) {
-  uint32_t time;
+  uint64_t time : 40;
+  uint64_t sync : 40;
   Quaternion quat_;
   Vector3 gyro_;
   Vector3 accl_;
   EulerAngles eulr_;
+  uint8_t crc8;
 } Data;
 ```
 
-## Update Firmware
+### **CAN 协议**
 
-<font color=red>⚠Important: Never erase the entire flash!!!</font>
+```c++
+#define ENCODER_21_MAX_INT ((1u << 21) - 1)
+#define CAN_PACK_ID_ACCL 0
+#define CAN_PACK_ID_GYRO 1
+#define CAN_PACK_ID_EULR 3
+#define CAN_PACK_ID_QUAT 4
 
-1. Get the latest firmware
+typedef union {
+  struct __attribute__((packed)) {
+    int32_t data1 : 21;
+    int32_t data2 : 21;
+    int32_t data3 : 21;
+    int32_t res : 1;
+  };
+  struct __attribute__((packed)) {
+    uint32_t data1_unsigned : 21;
+    uint32_t data2_unsigned : 21;
+    uint32_t data3_unsigned : 21;
+    uint32_t res_unsigned : 1;
+  };
+  uint8_t raw[8];
+} CanData3;
 
-    See [Firmware](./firmware).
+typedef struct __attribute__((packed)) {
+  union {
+    int16_t data[4];
+    uint16_t data_unsigned[4];
+  };
+} CanData4;
 
-1. Enter the bootloader mode
+typedef struct {
+  struct {
+    float x, y, z;
+  } accl;
+  struct {
+    float x, y, z;
+  } gyro;
+  struct {
+    float pitch, roll, yaw;
+  } eulr;
+  struct {
+    float w, x, y, z;
+  } quat;
+  uint64_t timestamp;
+  uint64_t sync_time;
+} ImuData;
 
-    ```sh
-    # Input in terminal
-    power bl
-    ```
+ImuData imu_data;
 
-1. Flash the firmware
+static float DecodeFloat21(uint32_t encoded, float min, float max) {
+  float norm =
+      (float)(encoded & ENCODER_21_MAX_INT) / (float)ENCODER_21_MAX_INT;
+  return min + norm * (max - min);
+}
 
-    Use uart download tool to flash the firmware, such as `STM32CubeProgrammer` or `stm32flash`.
-    Uart port: SERIAL-B(UART-DATA)
+static float DecodeInt16Normalized(int16_t value) {
+  return (float)value / (float)INT16_MAX;
+}
 
-1. Reboot
+static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
+  uint32_t packet_type = id - IMU_DEVICE_ID;
 
-    Restart the power supply.
+  switch (packet_type) {
+  case CAN_PACK_ID_ACCL: {
+    /* Accelerometer data: ±24g range */
+    CanData3 *can_data = (CanData3 *)data;
+    imu_data.accl.x = DecodeFloat21(can_data->data1_unsigned, -24.0f, 24.0f);
+    imu_data.accl.y = DecodeFloat21(can_data->data2_unsigned, -24.0f, 24.0f);
+    imu_data.accl.z = DecodeFloat21(can_data->data3_unsigned, -24.0f, 24.0f);
+    break;
+  }
 
-## [Video](https://www.bilibili.com/video/BV1iespeLE5S/?share_source=copy_web&vd_source=941b1c3432c2b11a6c408c836c9e2887)
+  case CAN_PACK_ID_GYRO: {
+    /* Gyroscope data: ±2000 deg/s converted to rad/s */
+    CanData3 *can_data = (CanData3 *)data;
+    float min_gyro = -2000.0f * M_PI / 180.0f;
+    float max_gyro = 2000.0f * M_PI / 180.0f;
+    imu_data.gyro.x =
+        DecodeFloat21(can_data->data1_unsigned, min_gyro, max_gyro);
+    imu_data.gyro.y =
+        DecodeFloat21(can_data->data2_unsigned, min_gyro, max_gyro);
+    imu_data.gyro.z =
+        DecodeFloat21(can_data->data3_unsigned, min_gyro, max_gyro);
+    break;
+  }
 
-## [Buy Now](https://mall.bilibili.com/neul-next/index.html?page=mall-up_itemDetail&noTitleBar=1&itemsId=1106251092&from=items_share&msource=items_share)
+  case CAN_PACK_ID_EULR: {
+    /* Euler angles: ±π rad */
+    CanData3 *can_data = (CanData3 *)data;
+    imu_data.eulr.pitch = DecodeFloat21(can_data->data1_unsigned, -M_PI, M_PI);
+    imu_data.eulr.roll = DecodeFloat21(can_data->data2_unsigned, -M_PI, M_PI);
+    imu_data.eulr.yaw = DecodeFloat21(can_data->data3_unsigned, -M_PI, M_PI);
+    break;
+  }
+
+  case CAN_PACK_ID_QUAT: {
+    /* Quaternion data: normalized int16 */
+    CanData4 *can_data = (CanData4 *)data;
+    imu_data.quat.w = DecodeInt16Normalized(can_data->data[0]);
+    imu_data.quat.x = DecodeInt16Normalized(can_data->data[1]);
+    imu_data.quat.y = DecodeInt16Normalized(can_data->data[2]);
+    imu_data.quat.z = DecodeInt16Normalized(can_data->data[3]);
+    break;
+  }
+
+  default:
+    /* Unknown packet type */
+    break;
+  }
+}
+```
+
+### **CANFD 结构**
+
+```c++
+typedef struct __attribute__((packed)) {
+  uint64_t time : 48;
+  uint64_t sync : 48;
+  float quat[4]; /* w, x, y, z */
+  float gyro[3]; /* x, y, z */
+  float accl[3]; /* x, y, z */
+  float eulr[3]; /* pitch, roll, yaw */
+} CanfdData;
+```
+
+## **固件更新**
+
+`<font color=red>`⚠ **注意：请勿擦除整个 Flash！**`</font>`
+
+`<font color=red>`⚠ **注意：此分支只支持 2025/9/10 以后购买的版本**`</font>`
+
+1. 获取最新固件：参考 `firmware` 目录。
+2. 进入 Bootloader 模式：
+
+   ```sh
+   power bl
+   ```
+  
+3. 使用 `STM32CubeProgrammer` 或 `stm32flash` 进行 UART 刷写。
+4. 重启
+
+## **相关资源**
+
+- [Bilibili 视频演示](https://www.bilibili.com/video/BV1iespeLE5S/?share_source=copy_web)
 
 ![XRobot](./img/XRobot.jpeg)
