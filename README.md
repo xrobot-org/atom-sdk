@@ -192,7 +192,7 @@ Zero offset:-0.035189°/min
 ## **VOFA+ 可视化数据**
 
 请添加以下自定义命令，使用VOFA+可视化数据。
-数据分别为：w x y z pitch roll yaw
+数据分别为：`w x y z pitch roll yaw`
 
 ```shell
 ahrs print_quat 1000000 100\r\n
@@ -374,9 +374,12 @@ typedef struct __attribute__((packed)) {
 
 ## **固件更新**
 
-`<font color=red>`⚠ **注意：请勿擦除整个 Flash！**`</font>`
+<font color=red>
 
-`<font color=red>`⚠ **注意：此分支只支持 2025/9/10 以后购买的版本**`</font>`
+⚠ **请勿擦除整个 Flash！**
+
+⚠ **此分支只支持 2025/9/10 以后购买的版本**
+</font>
 
 1. 获取最新固件：参考 `firmware` 目录。
 2. 进入 Bootloader 模式：
