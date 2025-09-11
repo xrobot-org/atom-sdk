@@ -84,19 +84,14 @@ typedef struct __attribute__((packed)) {
 } EulerAngles;
 
 typedef struct __attribute__((packed)) {
-  uint32_t time;
+  uint64_t time : 48;
+  uint64_t sync : 48;
   Quaternion quat_;
   Vector3 gyro_;
   Vector3 accl_;
   EulerAngles eulr_;
 } Data;
 
-typedef struct __attribute__((packed)) {
-  uint8_t prefix;
-  uint8_t id;
-  Data data;
-  uint8_t crc8;
-} UartData;
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

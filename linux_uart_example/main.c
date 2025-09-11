@@ -14,14 +14,16 @@
 #define UART_PORT ("/dev/ttyCH343USB1")
 
 /* Structure for 3D vector (e.g., acceleration, gyroscope) */
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed))
+{
   float x;
   float y;
   float z;
 } Vector3;
 
 /* Structure for quaternion representation of rotation */
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed))
+{
   float q0;
   float q1;
   float q2;
@@ -29,17 +31,19 @@ typedef struct __attribute__((packed)) {
 } Quaternion;
 
 /* Structure for Euler angles representation of rotation */
-typedef struct __attribute__((packed)) {
-  float yaw;
-  float pit;
+typedef struct __attribute__((packed))
+{
   float rol;
+  float pit;
+  float yaw;
 } EulerAngles;
 
 /* Full data structure received from IMU sensor */
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed))
+{
   uint8_t prefix; /* Packet header (0xA5) */
-  uint8_t id;     /* IMU device ID (0x30) */
-  uint32_t time;  /* Timestamp */
+  uint64_t time : 40;
+  uint64_t sync : 40;
   Quaternion quat_;
   Vector3 gyro_;
   Vector3 accl_;
@@ -48,7 +52,8 @@ typedef struct __attribute__((packed)) {
 } Data;
 
 /* CAN Data Structure */
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed))
+{
   uint8_t prefix;
   uint32_t id;
   uint8_t data[8];
@@ -82,15 +87,19 @@ static const uint8_t CRC8_TAB[256] = {
     0x74, 0x2a, 0xc8, 0x96, 0x15, 0x4b, 0xa9, 0xf7, 0xb6, 0xe8, 0x0a, 0x54,
     0xd7, 0x89, 0x6b, 0x35};
 
-uint8_t CalculateCRC8(const uint8_t *buf, size_t len, uint8_t crc) {
-  while (len-- > 0) {
+uint8_t CalculateCRC8(const uint8_t *buf, size_t len, uint8_t crc)
+{
+  while (len-- > 0)
+  {
     crc = CRC8_TAB[(crc ^ *buf++) & 0xff];
   }
   return crc;
 }
 
-bool VerifyData(const uint8_t *buf, size_t len) {
-  if (len < 2) {
+bool VerifyData(const uint8_t *buf, size_t len)
+{
+  if (len < 2)
+  {
     return false;
   }
 
@@ -99,8 +108,10 @@ bool VerifyData(const uint8_t *buf, size_t len) {
 }
 
 /* Function to return a standard baud rate value */
-speed_t get_standard_baudrate(int baudrate) {
-  switch (baudrate) {
+speed_t get_standard_baudrate(int baudrate)
+{
+  switch (baudrate)
+  {
   case 9600:
     return B9600;
   case 115200:
@@ -117,9 +128,11 @@ speed_t get_standard_baudrate(int baudrate) {
 }
 
 /* Function to open and configure serial port with the specified baud rate */
-int open_serial_port(const char *port, int baudrate) {
+int open_serial_port(const char *port, int baudrate)
+{
   int fd = open(port, O_RDWR | O_NOCTTY);
-  if (fd < 0) {
+  if (fd < 0)
+  {
     perror("open_port: Unable to open");
     return -1;
   }
@@ -127,7 +140,8 @@ int open_serial_port(const char *port, int baudrate) {
   struct termios tty;
   memset(&tty, 0, sizeof tty);
 
-  if (tcgetattr(fd, &tty) != 0) {
+  if (tcgetattr(fd, &tty) != 0)
+  {
     perror("tcgetattr");
     close(fd);
     return -1;
@@ -135,7 +149,8 @@ int open_serial_port(const char *port, int baudrate) {
 
   /* Set baud rate */
   speed_t baud = get_standard_baudrate(baudrate);
-  if (!baud) {
+  if (!baud)
+  {
     fprintf(stderr, "Unsupported baud rate: %d\n", baudrate);
     close(fd);
     return -1;
@@ -157,9 +172,10 @@ int open_serial_port(const char *port, int baudrate) {
   tty.c_oflag &= ~(OPOST | ONLCR);
 
   tty.c_cc[VTIME] = 10; /* 1-second timeout */
-  tty.c_cc[VMIN] = DATA_IMU_LENGTH;
+  tty.c_cc[VMIN] = 64;
 
-  if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+  if (tcsetattr(fd, TCSANOW, &tty) != 0)
+  {
     perror("tcsetattr");
     close(fd);
     return -1;
@@ -168,15 +184,18 @@ int open_serial_port(const char *port, int baudrate) {
 }
 
 /* Main function */
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
   int baudrate = 1000000; /* Default baud rate */
-  if (argc > 1) {
+  if (argc > 1)
+  {
     baudrate = atoi(argv[1]); /* Allow user to specify baud rate */
   }
 
   const char *serial_port = UART_PORT;
   int serial_fd = open_serial_port(serial_port, baudrate);
-  if (serial_fd < 0) {
+  if (serial_fd < 0)
+  {
     return EXIT_FAILURE;
   }
 
@@ -185,57 +204,76 @@ int main(int argc, char *argv[]) {
   Data received_data;
   ssize_t bytes_read;
 
-  while (1) {
+  while (1)
+  {
     uint8_t prefix;
-    if (read(serial_fd, &prefix, 1) <= 0) {
+    ssize_t ret = read(serial_fd, &prefix, 1);
+    if (ret < 0)
+    {
       perror("Read failed");
       break;
     }
+    else if (ret == 0)
+    {
+      printf("Read returned 0 (EOF or no data)\n");
+      break;
+    }
 
-    if (prefix == 0xA5) {
+    if (prefix == 0xA5)
+    {
       Data imu_data;
       imu_data.prefix = prefix;
       if (read(serial_fd, ((uint8_t *)&imu_data) + 1, DATA_IMU_LENGTH - 1) !=
-          DATA_IMU_LENGTH - 1) {
+          DATA_IMU_LENGTH - 1)
+      {
         perror("Read failed");
         continue;
       }
 
-      if (VerifyData((uint8_t *)&imu_data, DATA_IMU_LENGTH)) {
+      if (VerifyData((uint8_t *)&imu_data, DATA_IMU_LENGTH))
+      {
         memcpy(&received_data, &imu_data, sizeof(Data));
-        printf("Time:%d ID:%d Yaw: %+6f, Pitch: %+6f, Roll: %+6f, Ax:%+6f, "
-               "Ay:%+6f, "
-               "Az:%+6f, Gx:%+6f, Gy:%+6f, Gz:%+6f, "
-               "Q0:%+6f, Q1:%+6f, Q2:%+6f, Q3:%+6f\n",
-               received_data.time, received_data.id, received_data.eulr_.yaw,
-               received_data.eulr_.pit, received_data.eulr_.rol,
+        printf("Time:%ld Sync:%ld Roll: %+6f, Pitch:%+6f, Yaw:%+6f, "
+               "Ax:%+6f, Ay:%+6f, Az:%+6f, Gx:%+6f, Gy:%+6f, Gz:%+6f, Q0:%+6f, Q1:%+6f, Q2:%+6f, Q3:%+6f\n",
+               received_data.time, received_data.sync, received_data.eulr_.rol,
+               received_data.eulr_.pit, received_data.eulr_.yaw,
                received_data.accl_.x, received_data.accl_.y,
                received_data.accl_.z, received_data.gyro_.x,
                received_data.gyro_.y, received_data.gyro_.z,
                received_data.quat_.q0, received_data.quat_.q1,
                received_data.quat_.q2, received_data.quat_.q3);
-      } else {
+      }
+      else
+      {
         printf("IMU CRC check failed.\n");
       }
-    } else if (prefix == 0xA6) {
+    }
+#if 0
+    else if (prefix == 0xA6)
+    {
       DataCanToUart can_data;
       can_data.prefix = prefix;
       if (read(serial_fd, ((uint8_t *)&can_data) + 1, DATA_CAN_LENGTH - 1) !=
-          DATA_CAN_LENGTH - 1) {
+          DATA_CAN_LENGTH - 1)
+      {
         perror("Read failed");
         continue;
       }
 
-      if (VerifyData((uint8_t *)&can_data, DATA_CAN_LENGTH)) {
+      if (VerifyData((uint8_t *)&can_data, DATA_CAN_LENGTH))
+      {
         printf("CAN: ID:%d, Data: ", can_data.id);
         for (int i = 0; i < 8; i++)
           printf("%02X ", can_data.data[i]);
         printf("\n");
         write(serial_fd, ((uint8_t *)&can_data), DATA_CAN_LENGTH);
-      } else {
+      }
+      else
+      {
         printf("CAN CRC check failed.\n");
       }
     }
+#endif
   }
   close(serial_fd);
   return EXIT_SUCCESS;
