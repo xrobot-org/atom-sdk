@@ -202,6 +202,8 @@ ahrs print_quat 1000000 100\r\n
 
 [Top Model](./3D/imu_top.step)
 
+[Middle Model](./3D/imu_mid.step)
+
 [Bottom Model](./3D/imu_bottom.step)
 
 ![View](./img/xrobot-atom.png)
