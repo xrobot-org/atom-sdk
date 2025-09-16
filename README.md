@@ -163,7 +163,7 @@ XRobot:/$ bmi088 cali
 # 校准误差绝对值在0.00003以下视为校准成功，理想情况下应当小于0.000015
 Calibration error -0.000013
 Calibration data saved.
-# 更改方向，USB接口面朝上
+# 更改方向，USB接口面朝下
 XRobot:/$ bmi088 cali
 ...
 # 侧放IMU，USB接口与XT30接口靠近桌面
