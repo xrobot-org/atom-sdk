@@ -13,9 +13,13 @@
 - **陀螺仪**：最大量程 ±2000DPS
 - **加速度计**：最大量程 ±24G
 
-## **输出测试**
+usb接口会在电脑上枚举出两个CDC虚拟串口，分别为命令行与数据输出。虚拟串口输出的IMU数据与硬件串口格式相同。
 
-![data](./img/data.png)
+不建议使用USB转TTL连接硬件串口。硬件串口波特率较高，需要选择支持此波特率（2M）的USB转TTL模块。模块自带的USB接口延迟更低，速度更快。
+
+## **Yaw轴零漂测试**
+
+![data](./img/data.jpg)
 
 ## **连接方式**
 
@@ -39,7 +43,7 @@
 ├── ros_imu_publisher       `ROS IMU 发布节点`
 ├── ros_imu_subscriber      `ROS IMU 订阅节点`
 ├── ros_rviz_example.rviz   `ROS RViz 可视化`
-└── stm32_can_example       `STM32 CAN/CANFD 解析示例`
+└── stm32_can_example       `STM32 CAN 解析示例（5.3不支持CANFD）`
 ```
 
 ### **Linux UART 示例**
@@ -173,7 +177,7 @@ Zero offset:-0.035189°/min
 数据分别为：`w x y z pitch roll yaw`
 
 ```shell
-ahrs print_quat 1000000 100\r\n
+ahrs print_quat 1000000 10\r\n
 ```
 
 ## 3D 模型
