@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #define IMU_ID (0x30)
-#define UART_PORT ("/dev/ttyCH343USB1")
+#define UART_PORT ("/dev/ttyACM1")
 
 /* Structure for 3D vector (e.g., acceleration, gyroscope) */
 typedef struct __attribute__((packed))
@@ -186,7 +186,7 @@ int open_serial_port(const char *port, int baudrate)
 /* Main function */
 int main(int argc, char *argv[])
 {
-  int baudrate = 1000000; /* Default baud rate */
+  int baudrate = 2000000; /* Default baud rate */
   if (argc > 1)
   {
     baudrate = atoi(argv[1]); /* Allow user to specify baud rate */

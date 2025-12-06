@@ -17,7 +17,7 @@
 
 #define DATA_LENGTH sizeof(Data)
 
-const char *serial_port = "/dev/ttyCH343USB1";
+const char *serial_port = "/dev/ttyACM1";
 
 typedef struct __attribute__((packed)) {
   float x;
@@ -108,8 +108,8 @@ int open_serial_port(const char *port) {
     return -1;
   }
 
-  cfsetospeed(&tty, B1000000); // 设置波特率为1M
-  cfsetispeed(&tty, B1000000);
+  cfsetospeed(&tty, B2000000); // 设置波特率为1M
+  cfsetispeed(&tty, B2000000);
 
   tty.c_cflag &= ~PARENB;        // Clear parity bit
   tty.c_cflag &= ~CSTOPB;        // Clear stop field

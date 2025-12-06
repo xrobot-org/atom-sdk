@@ -1,17 +1,17 @@
-# ATOM-IMU 模块 V4.5
+# ATOM-IMU 模块 V5.3
 
 ![imu](./img/imu.jpg)
 
 ## **参数**
 
-- **输出频率**：1-1000Hz
+- **输出频率**：2-2000Hz
 - **支持电压**：5V/24V
-- **接口**：USB / UART / CANFD
+- **接口**：USB / UART / CAN
 - **支持数据类型**：加速度计 (ACC) / 陀螺仪 (GYRO) / 欧拉角 (EULR) / 四元数 (QUAT)
-- **UART 波特率**：460800 (终端) / 1M (数据)
-- **CAN 波特率**：1M / 5M
-- **陀螺仪**：最大量程 ±2000DPS，分辨率 0.015DPS
-- **加速度计**：最大量程 ±24G，分辨率 0.0001G
+- **UART 波特率**：2M (数据)
+- **CAN 波特率**：1M
+- **陀螺仪**：最大量程 ±2000DPS
+- **加速度计**：最大量程 ±24G
 
 ## **输出测试**
 
@@ -19,15 +19,17 @@
 
 ## **连接方式**
 
-- **USB-CH342**：`UART_DATA(1M) UART_TERMINAL(460800)`
-- **UART 1.25 4P**：
+- **USB**：`UART1(数据输出) UART2(命令行)`
+- **UART GH1.25 4P**：
   - `1: SYNC`
   - `2: TX`
   - `3: GND`
   - `4: +5V_IN`
-- **CAN 1.25 2P**：
+- **CAN GH1.25 4P**：
   - `1: CANL`
   - `2: CANH`
+  - `3: GND`
+  - `4: +5V_IN`
 - **XT30 供电**：`24V_IN`
 
 ## **示例代码**
@@ -43,31 +45,6 @@
 ### **Linux UART 示例**
 
 ![linux_uart_example](./img/linux_uart_example.png)
-
-请使用 [wch 官方 USB 驱动](https://github.com/WCHSoftGroup/ch343ser_linux) 以确保稳定性。
-
-```shell
-# 安装驱动
-sudo apt install mokutil shim-signed
-sudo update-secureboot-policy --new-key
-openssl req -new -x509 -newkey rsa:2048 -keyout MOK.priv -outform DER -out MOK.der -nodes -days 36500 -subj "/CN=Descriptive name/"
-sudo mokutil --import /var/lib/shim-signed/mok/MOK.der
-
-# 重启并注册 MOK
-reboot
-
-# 下载并编译驱动
-git clone https://github.com/WCHSoftGroup/ch343ser_linux
-cd ch343ser_linux/driver
-make
-
-# 签名驱动
-sudo /usr/src/linux-headers-$(uname -r)/scripts/sign-file sha256 /var/lib/shim-signed/mok/MOK.priv /var/lib/shim-signed/mok/MOK.der ch343.ko
-
-# 安装驱动
-sudo make install
-reboot
-```
 
 编译并运行示例：
 
@@ -108,15 +85,14 @@ make
 
 ## **终端交互**
 
-使用 `picocom`、`putty`、`MobaXTerm` 等工具进行交互，以460800波特率连接USB枚举出的第一个串口设备即可。例如 `USB-Enhanced-Serial-A CH342` 或 `/dev/ttyCH343USB0`。
-
+使用 `picocom`、`putty`、`MobaXTerm` 等工具进行交互，连接USB枚举出的第二个串口设备即可。
 示例操作：
 
 ```shell
-linux@XRobot:~$ ls /dev/ttyCH*
-/dev/ttyCH343USB0  /dev/ttyCH343USB1
+linux@XRobot:~$ ls /dev/ttyACM*
+/dev/ttyACM0  /dev/ttyACM1
 
-linux@XRobot:~$ picocom /dev/ttyCH343USB0 -b 460800
+linux@XRobot:~$ picocom /dev/ttyACM1
 ```
 
 回车后示例输出：
@@ -130,23 +106,25 @@ XRobot:/$
 ```shell
 # 输入set_imu命令并回车
 XRobot:/$ set_imu
-# 这一行显示IMU CAN/CANFD输出的状态，CAN/CANFD/UART输出同时只能有一个开启
-can/canfd output disabled.
+# 这一行显示IMU CAN输出的状态，CAN/UART输出同时只能有一个开启
+can output disabled.
 # 这一行显示IMU 串口输出的状态
 uart output enabled.
 # 这一行表示帧同步信号的检测模式，第一个数字0表示不检测，1表示检测上升沿，2表示检测下降沿，3表示同时检测上升沿和下降沿
 # 第二个数字代表最近一次帧同步信号的时间，单位微秒
-FSYNC:0 0
-# 这一行显示两次反馈数据的时间间隔，单位毫秒
+# 第三个数字代表最近一次IMU数据的时间，单位微秒
+FSYNC:0 0 6690413
+# 这一行显示两次反馈数据的时间间隔，单位500us
 feedback delay:1
 # 这一行显示IMU数据帧的ID
 id:48
 
 Usage:
-        set_delay  [time]  设置发送延时ms
+        set_delay  [time]  设置发送延时ms 1=500us
         set_can_id [id]    设置can id
+        just_float         设置vofa+ just_float输出
         # accl/gyro/quat/eulr只对can模式发送有效
-        enable/disable     [accl/gyro/quat/eulr/canfd/can/uart]
+        enable/disable     [accl/gyro/quat/eulr/can/uart]
         fsync              [0: disable 1: rise 2: fall 3: both]           设置fsync模式
 ```
 
@@ -156,21 +134,21 @@ Usage:
 
 ```shell
 # 上电后等待十分钟，IMU预热
-XRobot:/$ bmi088 show 600000 1000
+XRobot:/$ imu1 show 600000 1000
 # IMU平放，LOGO面朝上
-XRobot:/$ bmi088 cali
+XRobot:/$ imu1 cali
 ...
 # 校准误差绝对值在0.00003以下视为校准成功，理想情况下应当小于0.000015
 Calibration error -0.000013
 Calibration data saved.
 # 更改方向，USB接口面朝下
-XRobot:/$ bmi088 cali
+XRobot:/$ imu1 cali
 ...
-# 侧放IMU，USB接口与XT30接口靠近桌面
-XRobot:/$ bmi088 cali
+# 侧放IMU，使GH1.25接口朝下
+XRobot:/$ imu1 cali
 ...
 # 再次将IMU平放，LOGO面朝上
-XRobot:/$ icm42688 cali
+XRobot:/$ imu2 cali
 ...
 # 搜索得到当地的经纬度，可在谷歌地图中直接右键复制。例如格拉斯哥的经纬度为：55.87241068336635 -4.290120205979219
 XRobot:/$ ahrs set_location 55.87241068336635 -4.290120205979219
@@ -361,26 +339,13 @@ static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
 }
 ```
 
-### **CANFD 结构**
-
-```c++
-typedef struct __attribute__((packed)) {
-  uint64_t time : 48;
-  uint64_t sync : 48;
-  float quat[4]; /* w, x, y, z */
-  float gyro[3]; /* x, y, z */
-  float accl[3]; /* x, y, z */
-  float eulr[3]; /* pitch, roll, yaw */
-} CanfdData;
-```
-
 ## **固件更新**
 
 <font color=red>
 
 ⚠ **请勿擦除整个 Flash！**
 
-⚠ **此分支只支持 2025/9/10 以后购买的版本**
+⚠ **此分支只支持 2025/12/6 以后购买的版本**
 </font>
 
 1. 获取最新固件：参考 `firmware` 目录。
@@ -390,8 +355,9 @@ typedef struct __attribute__((packed)) {
    power bl
    ```
   
-3. 使用 `STM32CubeProgrammer` 或 `stm32flash` 进行 UART 刷写。
-4. 重启
+3. 重新插拔USB接口
+4. 进入此网站：[ATOM-IMU 固件更新](https://jiu-xiao.github.io/webdfu/dfu-util/)，根据提示操作
+5. 重新插拔USB接口
 
 ## **相关资源**
 
