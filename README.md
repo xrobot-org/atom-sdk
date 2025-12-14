@@ -148,14 +148,14 @@ Calibration data saved.
 # 更改方向，USB接口面朝下
 XRobot:/$ imu1 cali
 ...
-# 侧放IMU，使GH1.25接口朝下
+# 侧放IMU，使GH1.25接口朝上
 XRobot:/$ imu1 cali
 ...
 # 再次将IMU平放，LOGO面朝上
 XRobot:/$ imu2 cali
 ...
 # 搜索得到当地的经纬度，可在谷歌地图中直接右键复制。例如格拉斯哥的经纬度为：55.87241068336635 -4.290120205979219
-XRobot:/$ ahrs set_location 55.87241068336635 -4.290120205979219
+XRobot:/$ ahrs set_location 55.87 -4.29
 Done.
 # 校准完成
 ```
@@ -178,6 +178,16 @@ Zero offset:-0.035189°/min
 
 ```shell
 ahrs print_quat 1000000 10\r\n
+```
+
+## **调整恒温温度**
+
+```shell
+# 设置恒温温度  
+# 两个IMU温度同步，修改一个即可
+XRobot:/$ imu1 set_temp 45
+
+# 重新上电并校准
 ```
 
 ## 3D 模型
