@@ -1,6 +1,6 @@
 # ATOM-IMU 模块 V5.3
 
-![imu](./img/imu.jpg)
+![imu](./img/imu.png)
 
 ## **参数**
 
@@ -18,6 +18,8 @@ usb接口会在电脑上枚举出两个CDC虚拟串口，分别为命令行与�
 不建议使用USB转TTL连接硬件串口。硬件串口波特率较高，需要选择支持此波特率（2M）的USB转TTL模块。模块自带的USB接口延迟更低，速度更快。
 
 ## **Yaw轴零漂测试**
+
+零偏通常在10°/h以下，校准环境较好时可达3°/h以下。
 
 ![data](./img/data.jpg)
 
@@ -192,11 +194,9 @@ XRobot:/$ imu1 set_temp 45
 
 ## 3D 模型
 
-[Top Model](./3D/imu_top.step)
+[Top Model](./3D/Top.step)
 
-[Middle Model](./3D/imu_mid.step)
-
-[Bottom Model](./3D/imu_bottom.step)
+[Bottom Model](./3D/Bottom.step)
 
 ![View](./img/xrobot-atom.png)
 
@@ -359,7 +359,7 @@ static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
 
 ⚠ **请勿擦除整个 Flash！**
 
-⚠ **此分支只支持 2025/12/6 以后购买的版本**
+⚠ **此分支只支持 2025/12/21 以后购买的版本**
 </font>
 
 1. 获取最新固件：参考 `firmware` 目录。
