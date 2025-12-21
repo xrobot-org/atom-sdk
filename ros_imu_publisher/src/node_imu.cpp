@@ -17,7 +17,7 @@
 
 #define DATA_LENGTH sizeof(Data)
 
-const char *serial_port = "/dev/ttyACM1";
+const char *serial_port = "/dev/ttyACM0";
 
 typedef struct __attribute__((packed)) {
   float x;

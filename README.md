@@ -27,7 +27,7 @@ usb接口会在电脑上枚举出两个CDC虚拟串口，分别为命令行与�
 
 - **USB**：`UART1(数据输出) UART2(命令行)`
 - **UART GH1.25 4P**：
-  - `1: SYNC`
+  - `1: SYNC / FSYNC`（可配置为输入或输出）
   - `2: TX`
   - `3: GND`
   - `4: +5V_IN`
@@ -116,22 +116,30 @@ XRobot:/$ set_imu
 can output disabled.
 # 这一行显示IMU 串口输出的状态
 uart output enabled.
-# 这一行表示帧同步信号的检测模式，第一个数字0表示不检测，1表示检测上升沿，2表示检测下降沿，3表示同时检测上升沿和下降沿
-# 第二个数字代表最近一次帧同步信号的时间，单位微秒
-# 第三个数字代表最近一次IMU数据的时间，单位微秒
-FSYNC:0 0 6690413
+# 这一行表示帧同步信号FSYNC的模式：
+#   0=不启用
+#   1=检测上升沿
+#   2=检测下降沿
+#   3=同时检测上升沿/下降沿
+#   4=输出FSYNC时钟（UART口 SYNC/FSYNC 引脚输出）
+# 第二个数字代表最近一次FSYNC事件的时间（微秒）
+# 第三个数字代表最近一次IMU数据时间戳（微秒）
+FSYNC:4 6685000 6690413
+# 当 fsync=4（输出）时，会额外显示输出分频参数（Div）
+Div:10
 # 这一行显示两次反馈数据的时间间隔，单位500us
 feedback delay:1
 # 这一行显示IMU数据帧的ID
 id:48
 
 Usage:
-        set_delay  [time]  设置发送延时ms 1=500us
+        set_delay  [time]  设置发送延时 1=500us
+        set_div    [div]   设置clk_out(FSYNC)分频
         set_can_id [id]    设置can id
         just_float         设置vofa+ just_float输出
         # accl/gyro/quat/eulr只对can模式发送有效
         enable/disable     [accl/gyro/quat/eulr/can/uart]
-        fsync              [0: disable 1: rise 2: fall 3: both]           设置fsync模式
+        fsync              [0: disable 1: rise 2: fall 3: both 4: output]           设置fsync模式
 ```
 
 ## **校准（Calibration）**
@@ -192,6 +200,48 @@ XRobot:/$ imu1 set_temp 45
 # 重新上电并校准
 ```
 
+## **FSYNC 输入模式（fsync=1/2/3）**
+
+根据触发模式的不同，`Data.sync`会记录输入信号的边沿触发时间。
+
+## **FSYNC 输出模式（fsync=4）**
+
+当 `fsync` 设置为 `4` 时，模块会在 **UART GH1.25 的 1 号脚（SYNC/FSYNC）** 输出方波时钟，用于外部同步。
+
+- `Data.sync` 字段记录**最近一次 FSYNC 输出上升沿所对应的 IMU 采样结束/数据就绪时间戳**（微秒）
+- `Data.sync` 仅在 FSYNC 上升沿发生时更新，其余数据帧会保持为“最近一次上升沿对应的 `sync` 值”
+- FSYNC 输出上升沿相对 `Data.sync` 的延迟约为 **8.5µs**（典型值）
+- 输出分频由 `set_div [div]` 控制（仅 `fsync=4` 时生效）
+- `set_delay [delay]` 为发送/反馈节拍，单位 500µs（`delay=1` 即 500µs）
+- 在当前固件中，内部数字滤波带来的群延迟典型值约为 **1.5ms**
+
+输出周期计算：
+- **翻转间隔**：`500µs × delay × div`
+- **方波周期**：`500µs × delay × div × 2`
+
+示例：`delay=2`（1ms），`div=5`  
+方波周期 = `500µs × 2 × 5 × 2 = 10ms`，即 **100Hz**。
+
+---
+
+## **路径延迟**
+
+在当前配置下，IMU 采样周期约为 **500µs**。  
+IMU 采样结束到 FSYNC 输出**上升沿**需要约 **8.5µs**。
+
+例如使用 FSYNC 触发相机采集时：
+
+- IMU 采样时间中点约为：`Data.sync - 250µs`
+- 相机采集时间中点约为：`Data.sync + 8.5µs + 相机触发上升沿延迟 + 曝光时间/2`
+
+因此可结合 `Data.sync` 与 `Data.time`，在 IMU 数据流中选择**距离相机采集时间中点最近**的 IMU 数据帧。
+
+此外，更改 `set_delay [delay]` 或 `set_div [div]` 均会在**当前周期结束后**生效，运行时更改不会导致相位偏移。  
+因此可通过调整 `div`，并同时监控**相机帧时间差**与**IMU 数据时间差**（相对上一帧的 Δt）来对齐相机与 IMU 数据。
+
+![sync](img/sync.png)
+
+
 ## 3D 模型
 
 [Top Model](./3D/Top.step)
@@ -204,7 +254,7 @@ XRobot:/$ imu1 set_temp 45
 
 ### **UART 协议**
 
-- 数据帧包括：前缀，微秒时间戳，四元数，角速度，加速度，欧拉角，CRC8校验。
+- 数据帧包括：前缀，微秒时间戳（time），同步时间戳（sync），四元数，角速度，加速度，欧拉角，CRC8 校验。
 
 ```c++
 typedef struct __attribute__((packed)) {

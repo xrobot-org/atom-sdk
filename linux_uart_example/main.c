@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #define IMU_ID (0x30)
-#define UART_PORT ("/dev/ttyACM1")
+#define UART_PORT ("/dev/ttyACM0")
 
 /* Structure for 3D vector (e.g., acceleration, gyroscope) */
 typedef struct __attribute__((packed))
