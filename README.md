@@ -403,14 +403,13 @@ static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
 }
 ```
 
+## 烧录bootloader
+
+通过短接boot（R66）进入DFU下载模式，或者使用1.25 4P探针连接SWD接口，烧录bootloader。烧录完成重启即可进入固件更新流程。
+
+bootloader固件：[bootloader.bin](./firmware/bootloader.bin)
+
 ## **固件更新**
-
-<font color=red>
-
-⚠ **请勿擦除整个 Flash！**
-
-⚠ **此分支只支持 2025/12/21 以后购买的版本**
-</font>
 
 1. 获取最新固件：参考 `firmware` 目录。
 2. 进入 Bootloader 模式：
@@ -418,7 +417,9 @@ static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
    ```sh
    power bl
    ```
-  
+
+如从未烧录app固件，重启将会自动进入bootloader。
+
 3. 重新插拔USB接口
 4. 进入此网站：[ATOM-IMU 固件更新](https://jiu-xiao.github.io/webdfu/dfu-util/)，根据提示操作
 5. 重新插拔USB接口
