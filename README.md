@@ -403,26 +403,78 @@ static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
 }
 ```
 
-## 烧录bootloader
+## **固件说明**
 
-通过短接boot（R66）进入DFU下载模式，或者使用1.25 4P探针连接SWD接口，烧录bootloader。烧录完成重启即可进入固件更新流程。
+- `bootloader.bin`
+  - Bootloader 镜像，仅用于写入 Bootloader
+- `firmware/` 目录下的 `firmware_*.elf`
+  - 应用固件，用于通过 WebDFU 下载到设备
+  - 例如：
+    - `firmware_25-12-21.elf`
+    - `firmware_25-12-28.elf`
 
-bootloader固件：[bootloader.bin](./firmware/bootloader.bin)
+请勿将 `bootloader.bin` 作为应用固件下载，否则设备将停留在 Bootloader / DFU 模式。
 
-## **固件更新**
+## **首次烧录流程**
 
-1. 获取最新固件：参考 `firmware` 目录。
-2. 进入 Bootloader 模式：
+用于首次装配后的上电，或设备中尚无应用固件时。
+
+1. 写入 Bootloader。
+   - 使用 1.25 4P 探针连接 SWD 接口，烧录 [bootloader.bin](./firmware/bootloader.bin)
+   - 或按硬件流程短接 `boot`（`R66`），进入 DFU 下载模式后烧录 Bootloader
+2. 重启设备。
+3. 若设备中尚无应用固件，重启后会自动进入 Bootloader。
+4. 重新插拔 USB。
+5. 打开此网站：[ATOM-IMU 固件更新](https://jiu-xiao.github.io/webdfu/dfu-util/)
+6. 选择 `firmware/` 目录下的 `firmware_*.elf` 作为应用固件。
+7. 按页面提示完成下载。
+8. 再次重新插拔 USB。
+9. 命令串口回车后出现 `XRobot:/$`，表示应用固件已启动。
+
+## **应用固件更新**
+
+用于设备已具备可运行的应用固件，需要升级版本时。
+
+1. 准备新的 `firmware_*.elf`。
+2. 通过命令串口执行：
 
    ```sh
    power bl
    ```
 
-如从未烧录app固件，重启将会自动进入bootloader。
+3. 设备进入 Bootloader 后，重新插拔 USB。
+4. 打开此网站：[ATOM-IMU 固件更新](https://jiu-xiao.github.io/webdfu/dfu-util/)
+5. 选择新的 `firmware_*.elf`，按页面提示完成更新。
+6. 再次重新插拔 USB。
+7. 命令串口回车后出现 `XRobot:/$`，表示更新完成。
 
-3. 重新插拔USB接口
-4. 进入此网站：[ATOM-IMU 固件更新](https://jiu-xiao.github.io/webdfu/dfu-util/)，根据提示操作
-5. 重新插拔USB接口
+若当前应用固件无法进入命令串口，可按“首次烧录流程”重新进入 Bootloader，再重新下载应用固件。
+
+## **焊接建议**
+
+- `BMI088`、`BMI270`、`STM32` 建议采用植锡后热风回流的方式焊接。
+- 对 `BMI088`、`BMI270` 这类细间距器件，建议先在焊盘和器件引脚上少量植锡，配合助焊剂完成对位，再进行整体回流。
+- `BMI088` 可先对器件引脚和焊盘植锡，再使用热风整体吹焊；操作方式可参考类似 `BGA` 的回流焊法。
+- 重焊时应重点检查器件是否自然归位，以及四周焊点是否均匀吃锡。
+- `BMI088`、`BMI270` 相关故障除器件本体外，还应检查 `SPI`、`CS`、中断、供电等相关焊点。
+- 若多次重焊 `BMI088`、`BMI270` 后仍无法通信，应继续检查 `STM32` 侧焊接，不应仅限于传感器本体。
+
+## **常见问题与故障处理**
+
+下面的时间戳、文件行号会随固件版本变化，排查时优先看**日志关键字**。
+
+| 现象 / 日志特征 | 最可能原因 | 处理建议 |
+| --- | --- | --- |
+| 上电后始终停在 Bootloader，或设备行为一直像 DFU 更新设备 | 将 `bootloader.bin` 当成了应用固件烧录 | `bootloader.bin` 仅用于 Bootloader，本体固件请使用 `firmware/` 目录中的 app 固件；重新进入 Bootloader 后，按上面的固件更新流程重新烧录 app |
+| 两个 COM 口都能枚举，但 IMU 没有正常输出 / 陀螺仪不出数据 | 通常不是 USB 枚举问题，而是 IMU 相关焊接问题 | 优先检查 `BMI088`、`BMI270` 及其周边焊接；如果串口和 CLI 正常，但传感器数据异常，先不要把问题归到上位机 |
+| `W [200933] (./Modules/BMI270/BMI270.hpp:398) IMU2:Writesingle timeout reg=0x7E data=0xB6` | `BMI270` 寄存器写入后读回不一致，常见原因为 SPI 虚焊、连焊或芯片本体异常 | 重点检查 `BMI270` 供电、SPI 焊点和芯片姿态；建议补锡后热风重焊，必要时更换芯片 |
+| `W [201044] (./Modules/BMI270/BMI270.hpp:341) IMU2:bad CHIP ID` | `BMI270` 软复位后再次读取 `CHIP_ID` 失败，常见原因为 SPI 虚焊 | 优先按 `BMI270` SPI 焊接问题处理；先查焊点、再查芯片 |
+| `E [112547] (./Modules/BMI088/BMI088.hpp:260) IMU1: Init failed.` | `BMI088` 初始化失败。源码里对应的是加速度计或陀螺仪 `CHIP_ID` 读取不正确，常见原因为 SPI 虚焊，也可能是供电 / 片选异常 | 重点检查 `BMI088` 本体焊接、SPI 引脚、CS 连接与供电连通；建议先植锡再回流重焊 |
+| `W [28734] (./Modules/BMI088/BMI088.hpp:368) IMU1 wait timeout.` | `BMI088` 初始化后 50ms 内未等到新数据中断，常见原因为中断引脚虚焊 | 这类问题常见于 **能读到器件但等不到中断**；优先检查 `BMI088` 中断脚及其到 MCU 的走线/焊点 |
+| `BMI088`、`BMI270` 多次重焊后仍无法通信，或 IMU 仍无法识别 | 除传感器本体外，也可能是 `STM32` 侧虚焊 | 检查 `STM32` 与 IMU 相连的 `SPI`、`CS`、中断、供电等相关焊点 |
+| 加热电阻不工作，或温度长时间无法上升 | 可能是加热回路异常，也可能是 `STM32 PWM` 引脚虚焊 | 检查加热电阻、供电回路及 `STM32 PWM` 输出相关焊点 |
+
+如果多次重焊 `BMI088` / `BMI270` 后仍无法恢复，再排查 `STM32` 侧焊接、供电或芯片本体损坏。
 
 ## **相关资源**
 
