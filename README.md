@@ -466,6 +466,7 @@ static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
 | 现象 / 日志特征 | 最可能原因 | 处理建议 |
 | --- | --- | --- |
 | 上电后始终停在 Bootloader，或设备行为一直像 DFU 更新设备 | 将 `bootloader.bin` 当成了应用固件烧录 | `bootloader.bin` 仅用于 Bootloader，本体固件请使用 `firmware/` 目录中的 app 固件；重新进入 Bootloader 后，按上面的固件更新流程重新烧录 app |
+| 烧录 `bootloader.bin` 后，或短接 `boot`（`R66`）后，USB 仍不枚举 | 通常不是应用固件问题，应优先视为 `USB` 硬件链路异常 | 检查 `USB` 连接器、`USB` 相关电阻、`STM32 USB` 引脚、`USB` 相关晶振及其周边焊点 |
 | 两个 COM 口都能枚举，但 IMU 没有正常输出 / 陀螺仪不出数据 | 通常不是 USB 枚举问题，而是 IMU 相关焊接问题 | 优先检查 `BMI088`、`BMI270` 及其周边焊接；如果串口和 CLI 正常，但传感器数据异常，先不要把问题归到上位机 |
 | `W [200933] (./Modules/BMI270/BMI270.hpp:398) IMU2:Writesingle timeout reg=0x7E data=0xB6` | `BMI270` 寄存器写入后读回不一致，常见原因为 SPI 虚焊、连焊或芯片本体异常 | 重点检查 `BMI270` 供电、SPI 焊点和芯片姿态；建议补锡后热风重焊，必要时更换芯片 |
 | `W [201044] (./Modules/BMI270/BMI270.hpp:341) IMU2:bad CHIP ID` | `BMI270` 软复位后再次读取 `CHIP_ID` 失败，常见原因为 SPI 虚焊 | 优先按 `BMI270` SPI 焊接问题处理；先查焊点、再查芯片 |
