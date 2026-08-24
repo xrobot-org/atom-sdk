@@ -471,6 +471,8 @@ static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
 | `BMI088`、`BMI270` 多次重焊后仍无法通信，或 IMU 仍无法识别 | 除传感器本体外，也可能是 `STM32` 侧虚焊 | 检查 `STM32` 与 IMU 相连的 `SPI`、`CS`、中断、供电等相关焊点 |
 | 加热电阻不工作，或温度长时间无法上升 | 可能是加热回路异常，也可能是 `STM32 PWM` 引脚虚焊 | 检查加热电阻、供电回路及 `STM32 PWM` 输出相关焊点 |
 
+附上：[XRobot 开源 IMU 手动焊接烈士榜](https://github.com/xrobot-org/atom-sdk/blob/master/XRobot%20%E5%BC%80%E6%BA%90%20IMU%20%E6%89%8B%E5%8A%A8%E7%84%8A%E6%8E%A5%E7%83%88%E5%A3%AB%E6%A6%9C.pdf) 包含最近交流群内的焊接成功/失败记录
+
 ## **相关资源**
 
 - [Bilibili 视频演示](https://www.bilibili.com/video/BV1iespeLE5S/?share_source=copy_web)
