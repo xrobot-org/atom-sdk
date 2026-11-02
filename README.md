@@ -131,6 +131,8 @@ Div:10
 feedback delay:1
 # 这一行显示IMU数据帧的ID
 id:48
+# 这一行显示数据输出是否开启（见下文“停流 / 起流”，firmware_26-11-02 起）
+stream:on
 
 Usage:
         set_delay  [time]  设置发送延时 1=500us
@@ -140,6 +142,7 @@ Usage:
         # accl/gyro/quat/eulr只对can模式发送有效
         enable/disable     [accl/gyro/quat/eulr/can/uart]
         fsync              [0: disable 1: rise 2: fall 3: both 4: output]           设置fsync模式
+        stop / start       停流 / 起流，不写 flash，起流时刻写入 sync
 ```
 
 ## **校准（Calibration）**
@@ -221,6 +224,16 @@ XRobot:/$ imu1 set_temp 45
 
 示例：`delay=2`（1ms），`div=5`  
 方波周期 = `500µs × 2 × 5 × 2 = 10ms`，即 **100Hz**。
+
+## **停流 / 起流（set_imu stop / start，firmware_26-11-02 起）**
+
+不接 FSYNC 线时的第二种同步方式。这两条命令只改内存，不写 flash，可以反复使用；重新上电后总是按保存的设置输出。
+
+- `set_imu stop`：停止输出（UART 和 CAN），IMU 数据和 FSYNC 照常更新。
+- `set_imu start`：记下收到命令时的微秒时间，从时间不早于它的第一个样本起恢复输出。这个时间比已记下的 FSYNC 事件新时，成为之后数据帧的 `Data.sync`，直到出现更新的 FSYNC 事件。
+- 用法：主机发 `set_imu stop`，清空数据串口的接收缓冲，再发 `set_imu start`；之后收到的帧里 `Data.sync` 就是 IMU 收到 `start` 时的时间。
+- 精度受 USB 命令延迟限制（约 1 ms 量级）；需要微秒级同步时使用 FSYNC。
+- 两次 `start` 之间请间隔至少 1 ms。
 
 ---
 
@@ -412,6 +425,16 @@ static void ProcessClassicCanPacket(uint32_t id, uint8_t *data) {
   - 例如：
     - `firmware_25-12-21.elf`
     - `firmware_25-12-28.elf`
+    - `firmware_26-11-02.elf`（最新）
+
+### **固件版本记录**
+
+- `firmware_26-11-02.elf`
+  - 角速度输出（UART 帧和 CAN）在全量程内都取低噪声 IMU（BMI270），其量程改为 ±2000°/s；不再在约 425°/s 以上与 BMI088 混合。高转速时角速度噪声明显降低。
+  - 新增 `set_imu stop` / `set_imu start`（停流 / 起流，不写 flash），见上文。
+  - 修复：输出线程偶尔落后时，同一个样本会连续发两帧（时间戳相同）。现在改为跳过，不再重复。
+  - 修复：BMI270 的 SPI 偶发卡死后数据不再更新、直到复位的问题。
+  - 底层改用新版 LibXR。帧格式、CAN ID 与编码、命令名和参数不变；`ahrs set_location` / `set_offset` 不再接受科学计数法（如 `1e3`）。长命令（如 `cali`）执行期间，主机若继续向命令串口写入，写操作可能阻塞到命令结束，主机脚本请为串口设置写超时。
 
 请勿将 `bootloader.bin` 作为应用固件下载，否则设备将停留在 Bootloader / DFU 模式。
 
